@@ -1,0 +1,319 @@
+#+TITLE: CHIME Testing Strategy
+#+AUTHOR: Craig Jennings
+#+DATE: 2024-10-24
+
+* Overview
+
+This document outlines the ERT test strategy for the CHIME package, prioritizing critical functionality and documenting what should be tested and why.
+
+* Test Guidelines
+
+** Requirements
+- All tests in =chime.el/tests/= directory
+- File naming: =test-chime-<methodname>.el=
+- Use =testutil-general.el= utilities for test data management
+- Tests must be independent, deterministic, and isolated
+
+** Testing Approach
+- ERT framework
+- Each test verifies one specific behavior
+- Mock external dependencies (file I/O, time, network)
+- Descriptive naming: =test-chime-<function>-<scenario>-<expected-result>=
+
+** CHIME-Specific Considerations
+- Mock: =alert=, =play-sound-file=, =current-time=, async operations, org-agenda functions
+- Focus on critical paths: notification logic, modeline updates, sound playback, time calculations
+
+* Priority Tiers
+
+** TIER 1: Core Logic (Must Test)
+
+*** DONE Test chime--timestamp-parse
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* Fixed bugs here. Converts org timestamps to Emacs time. Foundation of all time calculations.
+
+*Risk:*
+- Malformed timestamps
+- Timezone issues
+- Repeating timestamps (=+1w=, =.+1d=, =++1w=)
+- Edge cases around midnight
+- Invalid date/time strings
+
+*Test Coverage:*
+- Normal: Valid timestamps with various formats
+- Boundary: Midnight, year boundaries, DST transitions
+- Error: Malformed strings, missing components, invalid dates
+
+*Status:* ✅ Complete - 25 tests, all passing
+
+*** DONE Test chime--has-timestamp
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* Fixed bugs here. Determines if event has valid time component. Gates whether events get processed.
+
+*Risk:*
+- Misclassifying day-wide vs timed events
+- False positives/negatives on timestamp detection
+- Not handling all org timestamp formats
+
+*Test Coverage:*
+- Normal: Standard timestamps with time components
+- Boundary: Timestamps at boundaries, with/without time
+- Error: Invalid formats, missing brackets, partial timestamps
+
+*Status:* ✅ Complete - 17 tests, all passing
+
+*** DONE Test chime--timestamp-within-interval-p
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* The "should we notify NOW?" decision. Critical timing logic.
+
+*Risk:*
+- Off-by-one errors
+- Boundary conditions around notification times
+- Incorrect interval calculations
+- Missing notifications at exact times
+
+*Test Coverage:*
+- Normal: Events at various intervals (5 min, 1 hour, etc.)
+- Boundary: Exactly at notification time, 0 minutes, very large intervals
+- Error: Negative intervals, past events, invalid timestamps
+
+*Status:* ✅ Complete - 17 tests, all passing
+
+*** DONE Test chime--notifications
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* Calculates which notifications should fire for an event. Combines alert times with event times.
+
+*Risk:*
+- Missing notifications
+- Duplicate notifications
+- Incorrect intervals
+- Not respecting per-event CHIME_NOTIFY_BEFORE property
+- Wrong interaction between global and per-event settings
+
+*Test Coverage:*
+- Normal: Single alert time, multiple alert times, per-event overrides
+- Boundary: Alert at event time (0 minutes), very early alerts
+- Error: Invalid alert times, missing properties, conflicting settings
+
+*Status:* ✅ Complete - 10 tests, all passing, no bugs found
+
+*** DONE Test chime--check-event
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* Processes single event and returns notification list. Main business logic.
+
+*Risk:*
+- Logic errors combining filtering and time checks
+- Missing edge cases in event processing
+- Incorrect event data extraction
+- Filtering interactions
+
+*Test Coverage:*
+- Normal: Valid events with various configurations
+- Boundary: Events at exact notification time, multiple timestamps
+- Error: Malformed events, missing required fields
+
+*Status:* ✅ Complete - 7 tests, all passing, no bugs found
+
+** TIER 2: Key Features (Should Test)
+
+*** DONE Test chime--update-modeline
+:PROPERTIES:
+:PRIORITY: B
+:TIER: 2
+:END:
+
+*Why:* New feature. Calculates soonest event within lookahead window.
+
+*Risk:*
+- Wrong event shown
+- Returns nil when should show event
+- Not updating when events change
+- Lookahead window calculation errors
+- Format string issues
+
+*Test Coverage:*
+- Normal: Single event, multiple events, events outside window
+- Boundary: Event exactly at lookahead boundary, 0 lookahead
+- Error: No events, all events outside window, malformed events
+
+*Status:* ✅ Complete - 8 tests, all passing, no bugs found
+
+*** DONE Test chime--notify
+:PROPERTIES:
+:PRIORITY: B
+:TIER: 2
+:END:
+
+*Why:* Actually sends notifications and plays sound. User-facing.
+
+*Risk:*
+- Sound file not found
+- Sound file corrupted
+- Notification failures
+- Error handling doesn't prevent notification display
+
+*Test Coverage:*
+- Normal: Valid sound file, notification with sound enabled
+- Boundary: Sound disabled, custom sound file
+- Error: Missing sound file, invalid file path, permission errors
+
+*Status:* ✅ Complete - 8 tests, all passing, no bugs found
+
+*** DONE Test chime--notification-text
+:PROPERTIES:
+:PRIORITY: B
+:TIER: 2
+:END:
+
+*Why:* Formats notification messages. User sees this directly.
+
+*Risk:*
+- Formatting errors
+- Edge cases in time display
+- Unicode/special character handling
+- Very long event titles
+
+*Test Coverage:*
+- Normal: Standard event with title and time
+- Boundary: Very long titles, titles with special chars, minimal data
+- Error: Missing event data, malformed time intervals
+
+*Status:* ✅ Complete - 11 tests, all passing, no bugs found
+
+*** DONE Test chime--time-left
+:PROPERTIES:
+:PRIORITY: B
+:TIER: 2
+:END:
+
+*Why:* Formats "in X minutes/hours" text. User-visible.
+
+*Risk:*
+- Plural/singular errors
+- Formatting edge cases (0 minutes, "right now")
+- Very large time values
+- Negative times
+
+*Test Coverage:*
+- Normal: Various time intervals (seconds, minutes, hours, days)
+- Boundary: 0 seconds, 1 minute, 60 minutes, 24 hours
+- Error: Negative times, extremely large values
+
+*Status:* ✅ Complete - 17 tests, all passing, no bugs found
+
+** TIER 3: Filtering (Good to Test)
+
+*** DONE Test chime--apply-whitelist
+:PROPERTIES:
+:PRIORITY: C
+:TIER: 3
+:END:
+
+*Why:* Filters events by keyword/tag whitelist.
+
+*Risk:*
+- Filtering out valid events
+- Letting through invalid events
+- Interaction between keyword and tag filters
+
+*Test Coverage:*
+- Normal: Valid whitelist with matching/non-matching events
+- Boundary: Empty whitelist (nil), single item, many items
+- Error: Invalid whitelist format, malformed events
+
+*Status:* ✅ Complete - 9 tests, all passing, no bugs found
+
+*** DONE Test chime--apply-blacklist
+:PROPERTIES:
+:PRIORITY: C
+:TIER: 3
+:END:
+
+*Why:* Filters events by keyword/tag blacklist.
+
+*Risk:*
+- Filtering out valid events
+- Letting through invalid events
+- Interaction with whitelist
+
+*Test Coverage:*
+- Normal: Valid blacklist with matching/non-matching events
+- Boundary: Empty blacklist, single item, many items
+- Error: Invalid blacklist format, malformed events
+
+*Status:* ✅ Complete - 10 tests, all passing, no bugs found
+
+*** DONE Test chime--extract-time
+:PROPERTIES:
+:PRIORITY: C
+:TIER: 3
+:END:
+
+*Why:* Extracts SCHEDULED/DEADLINE/timestamp from org entry.
+
+*Risk:*
+- Missing timestamps
+- Wrong priority (SCHEDULED vs DEADLINE vs plain)
+- Not handling multiple timestamps correctly
+
+*Test Coverage:*
+- Normal: Events with SCHEDULED, DEADLINE, plain timestamps
+- Boundary: Multiple timestamps, conflicting times
+- Error: No timestamps, malformed org entries
+
+*Status:* ✅ Complete - 12 tests, all passing, no bugs found
+
+* Methods Skipped
+
+These methods are either trivial, covered by higher-level tests, or difficult to unit test meaningfully.
+
+** SKIP chime--extract-title
+*Reason:* Simple text extraction from org entry. Covered by integration tests. Low risk.
+
+** SKIP chime--gather-info
+*Reason:* Simple aggregator function that calls other functions. Testing the individual functions provides sufficient coverage.
+
+** SKIP chime--get-tags
+*Reason:* Trivial property getter. One-liner wrapper around org-entry-get.
+
+** SKIP chime--time=
+*Reason:* Trivial time comparison helper. Low complexity, low risk.
+
+** SKIP chime--today
+*Reason:* Simple wrapper around time-to-days. Trivial.
+
+** SKIP chime--retrieve-events
+*Reason:* Complex org-agenda integration using async. Very difficult to unit test. Better tested via integration tests.
+
+** SKIP chime--check-events
+*Reason:* Already well-covered by existing integration tests (chime-tests.el). Orchestration function that calls testable components.
+
+** SKIP Day-wide event functions
+*Functions:* =chime-current-time-is-day-wide-time=, =chime-day-wide-notifications=, =chime-display-as-day-wide-event=, =chime-event-has-any-day-wide-timestamp=, =chime-event-has-any-passed-time=, =chime--day-wide-notification-text=
+
+*Reason:* Edge case functionality with lower priority. Existing integration tests provide some coverage.
+
+** SKIP Mode management functions
+*Functions:* =chime-mode=, =chime--start=, =chime--stop=, =chime-check=
+
+*Reason:* Integration test territory. Requires full Emacs environment. Difficult to meaningfully unit test.

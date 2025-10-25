@@ -1,0 +1,204 @@
+;;; test-chime-notification-text.el --- Tests for chime--notification-text -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2024 Craig Jennings
+
+;; Author: Craig Jennings <c@cjennings.net>
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Unit tests for chime--notification-text function.
+;; Tests cover normal cases, boundary cases, and error cases.
+
+;;; Code:
+
+;; Initialize package system for batch mode
+(when noninteractive
+  (package-initialize))
+
+(require 'ert)
+
+;; Load dependencies required by chime
+(require 'dash)
+(require 'alert)
+(require 'async)
+(require 'org-agenda)
+
+;; Load chime from parent directory
+(load (expand-file-name "../chime.el") nil t)
+
+;; Load test utilities
+(require 'testutil-general (expand-file-name "testutil-general.el"))
+
+;;; Setup and Teardown
+
+(defun test-chime-notification-text-setup ()
+  "Setup function run before each test."
+  (chime-create-test-base-dir)
+  ;; Reset display format to default
+  (setq chime-display-time-format-string "%I:%M %p"))
+
+(defun test-chime-notification-text-teardown ()
+  "Teardown function run after each test."
+  (chime-delete-test-base-dir))
+
+;;; Normal Cases
+
+(ert-deftest test-chime-notification-text-standard-event-formats-correctly ()
+  "Test that standard event formats correctly."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (result (chime--notification-text str-interval event)))
+        ;; Should format: "Team Meeting at 02:30 PM (in X minutes)"
+        (should (stringp result))
+        (should (string-match-p "Team Meeting" result))
+        (should (string-match-p "02:30 PM" result))
+        (should (string-match-p "in 10 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-morning-time-formats-with-am ()
+  "Test that morning time uses AM."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 09:15>" . 5))
+             (event '((title . "Standup")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Standup" result))
+        (should (string-match-p "09:15 AM" result))
+        (should (string-match-p "in 5 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-midnight-formats-correctly ()
+  "Test that midnight time formats correctly."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 00:00>" . 30))
+             (event '((title . "Midnight Event")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Midnight Event" result))
+        (should (string-match-p "12:00 AM" result))
+        (should (string-match-p "in 30 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-noon-formats-correctly ()
+  "Test that noon time formats correctly."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 12:00>" . 15))
+             (event '((title . "Lunch")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Lunch" result))
+        (should (string-match-p "12:00 PM" result))
+        (should (string-match-p "in 15 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-zero-minutes-shows-right-now ()
+  "Test that zero minutes shows 'right now'."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:00>" . 0))
+             (event '((title . "Current Event")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Current Event" result))
+        (should (string-match-p "02:00 PM" result))
+        (should (string-match-p "right now" result)))
+    (test-chime-notification-text-teardown)))
+
+;;; Boundary Cases
+
+(ert-deftest test-chime-notification-text-very-long-title-included ()
+  "Test that very long titles are included in full."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 15:45>" . 20))
+             (long-title "This is a very long event title that contains many words and might wrap in the notification display")
+             (event `((title . ,long-title)))
+             (result (chime--notification-text str-interval event)))
+        ;; Should include the full title
+        (should (string-match-p long-title result))
+        (should (string-match-p "03:45 PM" result))
+        (should (string-match-p "in 20 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-title-with-special-characters ()
+  "Test that titles with special characters work correctly."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 16:30>" . 5))
+             (event '((title . "Review: Alice's PR #123 (urgent!)")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Review: Alice's PR #123 (urgent!)" result))
+        (should (string-match-p "04:30 PM" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-time-format ()
+  "Test that custom time format string is respected."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-display-time-format-string "%H:%M")  ; 24-hour format
+             (result (chime--notification-text str-interval event)))
+        ;; Should use 24-hour format
+        (should (string-match-p "Meeting" result))
+        (should (string-match-p "14:30" result))
+        (should-not (string-match-p "PM" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-large-interval-shows-hours ()
+  "Test that large intervals show hours."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 18:00>" . 120))  ; 2 hours
+             (event '((title . "Evening Event")))
+             (result (chime--notification-text str-interval event)))
+        (should (string-match-p "Evening Event" result))
+        (should (string-match-p "06:00 PM" result))
+        ;; Should show hours format
+        (should (string-match-p "in 2 hours" result)))
+    (test-chime-notification-text-teardown)))
+
+;;; Error Cases
+
+(ert-deftest test-chime-notification-text-empty-title-shows-empty ()
+  "Test that empty title still generates output."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "")))
+             (result (chime--notification-text str-interval event)))
+        ;; Should still format, even with empty title
+        (should (stringp result))
+        (should (string-match-p "02:30 PM" result))
+        (should (string-match-p "in 10 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-missing-title-shows-nil ()
+  "Test that missing title shows nil in output."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '())  ; No title
+             (result (chime--notification-text str-interval event)))
+        ;; Should still generate output with nil title
+        (should (stringp result))
+        (should (string-match-p "02:30 PM" result))
+        (should (string-match-p "in 10 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+(provide 'test-chime-notification-text)
+;;; test-chime-notification-text.el ends here

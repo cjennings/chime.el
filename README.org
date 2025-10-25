@@ -1,0 +1,350 @@
+
+* *CHIME Heralds Imminent Events*
+
+Customizable org notifications for Emacs with visual alerts, audible chimes, and modeline display.
+
+** About
+
+CHIME (backronym: *CHIME Heralds Imminent Events*) provides notification support for your org-agenda events. Get visual notifications, a pleasant chime sound, and see your next upcoming event in your modeline.
+
+This is an updated and maintained fork of the abandoned [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]] project, renamed to CHIME with bug-fixes and new features.
+
+Note: while I've found this package to be quite reliable, it's still undergoing feature development and will be changing frequently. 
+
+** Features
+
+- *Visual notifications* with customizable alert times
+- *Audible chime sound* when notifications are displayed. 
+- *Modeline display* of next upcoming event with customizable lookahead
+- Multiple notification times per event (e.g., 5 minutes before and at event time)
+- Works with SCHEDULED and DEADLINE and plain timestamps
+- Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
+- Per-event notification customization via properties
+- Async background checking (runs every minute)
+- Configurable notification filtering by keywords and tags
+- [[tests/testing-strategy.org][Well-tested]], including with org-gcal
+
+** Installation
+
+This package is NOT YET available on MELPA.
+
+*** package-vc-install (Emacs 29+)
+
+#+BEGIN_SRC elisp
+(unless (package-installed-p 'chime)
+  (package-vc-install "https://github.com/cjennings/chime.el"))
+#+END_SRC
+
+*** use-package with :vc (Emacs 29+)
+
+#+BEGIN_SRC elisp
+(use-package chime
+  :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
+  :after (alert org-agenda)
+  :commands (chime-mode chime-check)
+  :bind ("C-c A" . chime-check)
+  :config
+  ;; Notification times: 5 minutes before and at event time
+  (setq chime-alert-time '(5 0))
+
+  ;; Chime sound
+  (setq chime-play-sound t)
+
+  ;; Modeline display
+  (setq chime-modeline-lookahead 30)
+  (setq chime-modeline-format " ⏰ %s")
+
+  ;; Notification settings
+  (setq chime-notification-title "Reminder")
+  (setq chime-alert-severity 'medium)
+
+  ;; Don't filter by TODO keywords - notify for all events
+  (setq chime-keyword-whitelist nil)
+  (setq chime-keyword-blacklist nil)
+
+  ;; Only notify for non-done items
+  (setq chime-predicate-blacklist
+        '(chime-done-keywords-predicate))
+
+  ;; Enable chime-mode automatically
+  (chime-mode 1))
+#+END_SRC
+
+*** Manual Installation (Recommended for Development)
+
+#+BEGIN_SRC elisp
+;; Add to load-path
+(add-to-list 'load-path "~/path/to/chime.el")
+
+;; Load and configure
+(require 'chime)
+#+END_SRC
+
+** Quick Start
+
+Minimal configuration:
+
+clone the package somewhere, then add 
+
+#+BEGIN_SRC elisp
+  (add-to-list 'load-path  "/path/to/chime.el/")
+  (require 'chime)
+
+  ;; Notify 5 minutes before and at event time
+  (setq chime-alert-time '(5 0))
+
+  ;; Enable notifications
+  (chime-mode 1)
+#+END_SRC
+
+** Configuration
+
+*** Alert Times
+
+Set when to receive notifications (in minutes before event):
+
+#+BEGIN_SRC elisp
+;; Single notification 10 minutes before
+(setq chime-alert-time 10)
+
+;; Multiple notifications: 10 min, 5 min, and at event time
+(setq chime-alert-time '(10 5 0))
+#+END_SRC
+
+*** Chime Sound
+
+Control the audible chime that plays when notifications appear:
+
+#+BEGIN_SRC elisp
+;; Enable/disable chime sound (default: t)
+(setq chime-play-sound t)
+
+;; Use custom sound file (defaults to bundled chime.wav)
+(setq chime-sound-file "/path/to/your/chime.wav")
+
+;; Disable sound, use system beep instead
+(setq chime-sound-file nil)
+#+END_SRC
+
+The package includes a pleasant chime sound in GPL-compatible WAV format. You can use your own sound file if preferred.
+
+*** Modeline Display
+
+Show the next upcoming event in your modeline:
+
+#+BEGIN_SRC elisp
+;; Show events up to 30 minutes ahead (default)
+(setq chime-modeline-lookahead 30)
+
+;; Customize the display format (default: " ⏰ %s")
+(setq chime-modeline-format " [Next: %s]")
+
+;; Disable modeline display
+(setq chime-modeline-lookahead 0)
+#+END_SRC
+
+The modeline will display the soonest event within the lookahead window, formatted as:
+- Default: =⏰ Meeting with Team at 02:30 PM (in 15 minutes)=
+- Updates automatically every minute
+
+*** Notification Settings
+
+#+BEGIN_SRC elisp
+;; Notification title
+(setq chime-notification-title "Reminder")
+
+;; Notification severity (low, medium, high)
+(setq chime-alert-severity 'medium)
+#+END_SRC
+
+*** Filtering
+
+#+BEGIN_SRC elisp
+;; Only notify for specific TODO keywords
+(setq chime-keyword-whitelist '("TODO" "NEXT"))
+
+;; Never notify for these keywords
+(setq chime-keyword-blacklist '("DONE" "CANCELLED"))
+
+;; Only notify for specific tags
+(setq chime-tags-whitelist '("@important"))
+
+;; Never notify for these tags
+(setq chime-tags-blacklist '("someday"))
+#+END_SRC
+
+** Usage
+
+*** Basic Event with Timestamp
+
+#+BEGIN_SRC org
+,* Meeting with Team
+<2025-10-25 Sat 14:00>
+#+END_SRC
+
+Will notify at 14:00 (if =chime-alert-time= includes =0=).
+
+*** Events with SCHEDULED or DEADLINE
+
+#+BEGIN_SRC org
+,* TODO Call Doctor
+SCHEDULED: <2025-10-25 Sat 10:00>
+#+END_SRC
+
+*** Repeating Events
+
+Repeating timestamps are fully supported:
+
+#+BEGIN_SRC org
+,* TODO Weekly Team Meeting
+SCHEDULED: <2025-10-25 Sat 14:00 +1w>
+
+,* TODO Daily Standup
+SCHEDULED: <2025-10-25 Sat 09:00 +1d>
+
+,* TODO Review Email
+SCHEDULED: <2025-10-25 Sat 08:00 .+1d>
+#+END_SRC
+
+Supported repeaters:
+- =+1w= - Repeat weekly from original date
+- =.+1d= - Repeat daily from completion
+- =++1w= - Repeat weekly from scheduled date
+
+*** Per-Event Notification Times
+
+Override global notification times for specific events:
+
+#+BEGIN_SRC org
+,* IMPORTANT Board Meeting
+SCHEDULED: <2025-10-25 Sat 14:00>
+:PROPERTIES:
+:CHIME_NOTIFY_BEFORE: 30 15 5 0
+:END:
+#+END_SRC
+
+This event will notify at: 30min, 15min, 5min before, and at event time.
+
+** Known Limitations
+
+*** Sexp Diary Entries Not Supported
+
+This format is *not supported*:
+
+#+BEGIN_SRC org
+,* TODO Daily Standup
+SCHEDULED: <%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>
+#+END_SRC
+
+*Workaround:* Use standard repeating timestamps instead:
+
+#+BEGIN_SRC org
+,* TODO Daily Standup
+SCHEDULED: <2025-10-24 Fri 09:00 +1d>
+#+END_SRC
+
+For Monday-Friday events, you can either:
+1. Accept weekend notifications (mark as DONE on weekends)
+2. Create 5 separate entries, one for each weekday with =+1w= repeater
+
+** Full Example Configuration
+
+#+BEGIN_SRC elisp
+  (use-package chime
+    :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
+    :after (alert org-agenda)
+    :commands (chime-mode chime-check)
+    :config
+    ;; Notification times: 5 minutes before and at event time
+    (setq chime-alert-time '(5 0))
+
+    ;; Chime sound
+    (setq chime-play-sound t)
+    ;; Uses bundled chime.wav by default
+
+    ;; Modeline display
+    (setq chime-modeline-lookahead 120)   ;; notify for events 2 hrs ahead
+    (setq chime-modeline-format " ⏰ %s") 
+
+    ;; Notification settings
+    (setq chime-notification-title "Reminder")
+    (setq chime-alert-severity 'medium)
+
+    ;; Don't filter by TODO keywords - notify for all events
+    (setq chime-keyword-whitelist nil)
+    (setq chime-keyword-blacklist nil)
+
+    ;; Only notify for non-done items
+    (setq chime-predicate-blacklist
+          '(chime-done-keywords-predicate))
+
+    ;; Enable chime-mode automatically
+    (chime-mode 1))
+#+END_SRC
+
+** Manual Check
+
+You can manually trigger a notification check:
+
+#+BEGIN_SRC elisp
+M-x chime-check
+#+END_SRC
+
+** Troubleshooting
+
+*** No notifications appearing
+
+1. Verify chime-mode is enabled: =M-: chime-mode=
+2. Check that alert is configured correctly:
+   #+BEGIN_SRC elisp
+   (setq alert-default-style 'libnotify)  ; or 'notifications on some systems
+   #+END_SRC
+3. Manually test: =M-x chime-check=
+4. Check =*Messages*= buffer for error messages
+
+*** No sound playing
+
+1. Verify sound is enabled: =M-: chime-play-sound= should return =t=
+2. Check sound file exists: =M-: (file-exists-p chime-sound-file)=
+3. Test sound directly: =M-: (play-sound-file chime-sound-file)=
+4. Ensure your system has audio support configured
+
+*** Events not being detected
+
+1. Ensure files are in =org-agenda-files=
+2. Verify timestamps have time components: =<2025-10-25 Sat 14:00>= not =<2025-10-25 Sat>=
+3. Check filtering settings (keyword/tag whitelist/blacklist)
+
+** Requirements
+
+- Emacs 26.1+
+- Org-mode 9.0+
+- =alert= package
+- =dash= package
+- =async= package
+
+** License
+
+GPL-3.0
+
+** Credits
+
+All credit and thanks should go to Artem Khramov for his work on [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]]. Early in 2025, I needed an event notifier in Emacs and found this package. Sadly, the author deprecated org-wild-notifier on Aug 2, 2025 in favor of [[https://github.com/spegoraro/org-alert][org-alert]]. I began fixing bugs and enhancing the feature set into what I needed, then decided it had become different enough to name it CHIME. I plan to maintain this in appreciation and gratitude of Artem's work, and for the larger Emacs community. 
+
+** Migration from Org-Wild-Notifier
+
+If you're migrating from org-wild-notifier, you'll need to update your configuration:
+
+1. Change package name:
+   - =(require 'org-wild-notifier)= → =(require 'chime)=
+
+2. Update all configured variable names:
+   - =org-wild-notifier-*= → =chime-*=
+
+3. Update configured function names:
+   - =org-wild-notifier-mode= → =chime-mode=
+   - =org-wild-notifier-check= → =chime-check=
+
+4. Update property names in your org files:
+   - =:WILD_NOTIFIER_NOTIFY_BEFORE:= → =:CHIME_NOTIFY_BEFORE:=
+
