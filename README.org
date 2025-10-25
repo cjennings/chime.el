@@ -227,16 +227,18 @@ This event will notify at: 30min, 15min, 5min before, and at event time.
 
 ** Known Limitations
 
-*** Sexp Diary Entries Not Supported
+*** S-expression Diary Entries Are Not Supported
 
-This format is *not supported*:
+Note: org-contacts users will quickly discover the above unsupported format is how org-contacts integrate birthdays into your calendar. If you use org-contacts, you will not be automatically notified about your contacts birthdays. 
+
+Specifically, this format is *not supported*:
 
 #+BEGIN_SRC org
 ,* TODO Daily Standup
 SCHEDULED: <%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>
 #+END_SRC
 
-*Workaround:* Use standard repeating timestamps instead:
+For those using this format outside of org-contacts, your workaround is to use standard repeating timestamps instead:
 
 #+BEGIN_SRC org
 ,* TODO Daily Standup
@@ -329,9 +331,11 @@ GPL-3.0
 
 ** Credits
 
-All credit and thanks should go to Artem Khramov for his work on [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]]. Early in 2025, I needed an event notifier in Emacs and found this package. Sadly, the author deprecated org-wild-notifier on Aug 2, 2025 in favor of [[https://github.com/spegoraro/org-alert][org-alert]]. I began fixing bugs and enhancing the feature set into what I needed, then decided it had become different enough to name it CHIME. I plan to maintain this in appreciation and gratitude of Artem's work, and for the larger Emacs community. 
+All credit and thanks should go to Artem Khramov for his work on [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]], which served me well for some time. Sadly, the author deprecated org-wild-notifier on Aug 2, 2025 in favor of [[https://github.com/spegoraro/org-alert][org-alert]]. I begain fixing bugs and enhancing the feature set into what is now CHIME. 
 
-** Migration from Org-Wild-Notifier
+I plan to maintain this in appreciation and gratitude of Artem's work, and for the larger Emacs community. 
+
+** Migration from org-wild-notifier
 
 If you're migrating from org-wild-notifier, you'll need to update your configuration:
 
