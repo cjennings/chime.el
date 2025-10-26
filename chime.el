@@ -604,15 +604,42 @@ Returns nil if parsing fails or timestamp is malformed."
 
 (defun chime--extract-time (marker)
   "Extract timestamps from MARKER.
+Extracts SCHEDULED and DEADLINE from properties, plus any plain
+timestamps found in the entry body.
 Timestamps are extracted as cons cells.  car holds org-formatted
 string, cdr holds time in list-of-integer format."
-  (-non-nil
-   (--map
-    (let ((org-timestamp (org-entry-get marker it)))
-      (and org-timestamp
-           (cons org-timestamp
-                 (chime--timestamp-parse org-timestamp))))
-    '("DEADLINE" "SCHEDULED" "TIMESTAMP"))))
+  (let ((property-timestamps
+         ;; Extract SCHEDULED and DEADLINE from properties
+         (-non-nil
+          (--map
+           (let ((org-timestamp (org-entry-get marker it)))
+             (and org-timestamp
+                  (cons org-timestamp
+                        (chime--timestamp-parse org-timestamp))))
+           '("DEADLINE" "SCHEDULED"))))
+        (plain-timestamps
+         ;; Extract plain timestamps from entry body
+         ;; Skip planning lines (SCHEDULED, DEADLINE, CLOSED) to avoid duplicates
+         (org-with-point-at marker
+           (let ((timestamps nil))
+             (save-excursion
+               ;; Skip heading and planning lines, but NOT other drawers (nil arg)
+               ;; This allows extraction from :org-gcal: and similar drawers
+               (org-end-of-meta-data nil)
+               (let ((start (point))
+                     (end (save-excursion (org-end-of-subtree t) (point))))
+                 ;; Only search if there's content after metadata
+                 (when (< start end)
+                   (goto-char start)
+                   ;; Search for timestamps until end of entry
+                   (while (re-search-forward org-ts-regexp end t)
+                     (let ((timestamp-str (match-string 0)))
+                       (push (cons timestamp-str
+                                   (chime--timestamp-parse timestamp-str))
+                             timestamps))))))
+             (nreverse timestamps)))))
+    ;; Combine property and plain timestamps, removing duplicates and nils
+    (-non-nil (append property-timestamps plain-timestamps))))
 
 (defun chime--extract-title (marker)
   "Extract event title from MARKER.
