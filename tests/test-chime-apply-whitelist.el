@@ -20,6 +20,7 @@
 ;;; Commentary:
 
 ;; Unit tests for chime--apply-whitelist function.
+;; Tests use real org-mode buffers with real org syntax.
 ;; Tests cover normal cases, boundary cases, and error cases.
 
 ;;; Code:
@@ -59,24 +60,6 @@
   (setq chime-tags-whitelist nil)
   (setq chime-predicate-whitelist nil))
 
-(defun test-chime-create-org-marker (keyword tags)
-  "Create a marker pointing to an org entry with KEYWORD and TAGS.
-Returns a marker with mocked org-entry-get and chime--get-tags."
-  (with-temp-buffer
-    (org-mode)
-    (insert (format "* %s Test Entry\n" (or keyword "")))
-    (let ((marker (point-marker)))
-      ;; Mock org-entry-get to return the keyword
-      (cl-letf (((symbol-function 'org-entry-get)
-                 (lambda (pom property &optional inherit literal-nil)
-                   (when (and (equal pom marker) (equal property "TODO"))
-                     keyword)))
-                ((symbol-function 'chime--get-tags)
-                 (lambda (pom)
-                   (when (equal pom marker)
-                     tags))))
-        marker))))
-
 ;;; Normal Cases
 
 (ert-deftest test-chime-apply-whitelist-nil-whitelist-returns-all-markers ()
@@ -98,27 +81,21 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
       (with-temp-buffer
         (org-mode)
         (insert "* TODO Task 1\n")
-        (let ((marker1 (copy-marker (point))))
-          (insert "* DONE Task 2\n")
-          (let ((marker2 (copy-marker (point))))
-            (insert "* TODO Task 3\n")
-            (let ((marker3 (copy-marker (point)))
+        (insert "* DONE Task 2\n")
+        (insert "* TODO Task 3\n")
+        (goto-char (point-min))
+        (let ((marker1 (point-marker)))
+          (forward-line 1)
+          (let ((marker2 (point-marker)))
+            (forward-line 1)
+            (let ((marker3 (point-marker))
                   (chime-keyword-whitelist '("TODO")))
-              ;; Mock org-entry-get to return appropriate keywords
-              (cl-letf (((symbol-function 'org-entry-get)
-                         (lambda (pom property &optional inherit literal-nil)
-                           (when (equal property "TODO")
-                             (cond
-                              ((equal pom marker1) "TODO")
-                              ((equal pom marker2) "DONE")
-                              ((equal pom marker3) "TODO")
-                              (t nil))))))
-                (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
-                  ;; Should only return TODO markers
-                  (should (= (length result) 2))
-                  (should (member marker1 result))
-                  (should-not (member marker2 result))
-                  (should (member marker3 result))))))))
+              (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
+                ;; Should only keep TODO markers
+                (should (= (length result) 2))
+                (should (member marker1 result))
+                (should-not (member marker2 result))
+                (should (member marker3 result)))))))
     (test-chime-apply-whitelist-teardown)))
 
 (ert-deftest test-chime-apply-whitelist-tags-whitelist-filters-correctly ()
@@ -127,27 +104,22 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
   (unwind-protect
       (with-temp-buffer
         (org-mode)
-        (insert "* Task 1\n")
-        (let ((marker1 (copy-marker (point))))
-          (insert "* Task 2\n")
-          (let ((marker2 (copy-marker (point))))
-            (insert "* Task 3\n")
-            (let ((marker3 (copy-marker (point)))
-                  (chime-tags-whitelist '("work")))
-              ;; Mock chime--get-tags to return appropriate tags
-              (cl-letf (((symbol-function 'chime--get-tags)
-                         (lambda (pom)
-                           (cond
-                            ((equal pom marker1) '("work" "urgent"))
-                            ((equal pom marker2) '("personal"))
-                            ((equal pom marker3) '("work"))
-                            (t nil)))))
-                (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
-                  ;; Should only return markers with "work" tag
-                  (should (= (length result) 2))
-                  (should (member marker1 result))
-                  (should-not (member marker2 result))
-                  (should (member marker3 result))))))))
+        (insert "* Task 1                                            :urgent:\n")
+        (insert "* Task 2                                             :normal:\n")
+        (insert "* Task 3                                            :urgent:\n")
+        (goto-char (point-min))
+        (let ((marker1 (point-marker)))
+          (forward-line 1)
+          (let ((marker2 (point-marker)))
+            (forward-line 1)
+            (let ((marker3 (point-marker))
+                  (chime-tags-whitelist '("urgent")))
+              (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
+                ;; Should only keep markers with "urgent" tag
+                (should (= (length result) 2))
+                (should (member marker1 result))
+                (should-not (member marker2 result))
+                (should (member marker3 result)))))))
     (test-chime-apply-whitelist-teardown)))
 
 (ert-deftest test-chime-apply-whitelist-keyword-and-tags-whitelist-uses-or-logic ()
@@ -157,35 +129,22 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
       (with-temp-buffer
         (org-mode)
         (insert "* TODO Task 1\n")
-        (let ((marker1 (copy-marker (point))))
-          (insert "* DONE Task 2\n")
-          (let ((marker2 (copy-marker (point))))
-            (insert "* NEXT Task 3\n")
-            (let ((marker3 (copy-marker (point)))
+        (insert "* DONE Task 2\n")
+        (insert "* NEXT Task 3                                        :urgent:\n")
+        (goto-char (point-min))
+        (let ((marker1 (point-marker)))
+          (forward-line 1)
+          (let ((marker2 (point-marker)))
+            (forward-line 1)
+            (let ((marker3 (point-marker))
                   (chime-keyword-whitelist '("TODO"))
                   (chime-tags-whitelist '("urgent")))
-              ;; Mock functions
-              (cl-letf (((symbol-function 'org-entry-get)
-                         (lambda (pom property &optional inherit literal-nil)
-                           (when (equal property "TODO")
-                             (cond
-                              ((equal pom marker1) "TODO")
-                              ((equal pom marker2) "DONE")
-                              ((equal pom marker3) "NEXT")
-                              (t nil)))))
-                        ((symbol-function 'chime--get-tags)
-                         (lambda (pom)
-                           (cond
-                            ((equal pom marker1) nil)
-                            ((equal pom marker2) '("urgent"))
-                            ((equal pom marker3) nil)
-                            (t nil)))))
-                (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
-                  ;; Should return marker1 (TODO keyword) and marker2 (urgent tag)
-                  (should (= (length result) 2))
-                  (should (member marker1 result))
-                  (should (member marker2 result))
-                  (should-not (member marker3 result))))))))
+              (let ((result (chime--apply-whitelist (list marker1 marker2 marker3))))
+                ;; Should keep marker1 (TODO) and marker3 (urgent tag)
+                (should (= (length result) 2))
+                (should (member marker1 result))
+                (should-not (member marker2 result))
+                (should (member marker3 result)))))))
     (test-chime-apply-whitelist-teardown)))
 
 ;;; Boundary Cases
@@ -206,42 +165,32 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
       (with-temp-buffer
         (org-mode)
         (insert "* TODO Task 1\n")
-        (let ((marker1 (copy-marker (point))))
-          (insert "* DONE Task 2\n")
-          (let ((marker2 (copy-marker (point)))
+        (insert "* DONE Task 2\n")
+        (goto-char (point-min))
+        (let ((marker1 (point-marker)))
+          (forward-line 1)
+          (let ((marker2 (point-marker))
                 (chime-keyword-whitelist '("TODO")))
-            (cl-letf (((symbol-function 'org-entry-get)
-                       (lambda (pom property &optional inherit literal-nil)
-                         (when (equal property "TODO")
-                           (cond
-                            ((equal pom marker1) "TODO")
-                            ((equal pom marker2) "DONE")
-                            (t nil))))))
-              (let ((result (chime--apply-whitelist (list marker1 marker2))))
-                (should (= (length result) 1))
-                (should (member marker1 result)))))))
+            (let ((result (chime--apply-whitelist (list marker1 marker2))))
+              (should (= (length result) 1))
+              (should (member marker1 result))))))
     (test-chime-apply-whitelist-teardown)))
 
 (ert-deftest test-chime-apply-whitelist-no-matching-markers-returns-empty ()
-  "Test that no matching markers returns empty list."
+  "Test that whitelist with no matching markers returns empty list."
   (test-chime-apply-whitelist-setup)
   (unwind-protect
       (with-temp-buffer
         (org-mode)
         (insert "* DONE Task 1\n")
-        (let ((marker1 (copy-marker (point))))
-          (insert "* CANCELLED Task 2\n")
-          (let ((marker2 (copy-marker (point)))
+        (insert "* DONE Task 2\n")
+        (goto-char (point-min))
+        (let ((marker1 (point-marker)))
+          (forward-line 1)
+          (let ((marker2 (point-marker))
                 (chime-keyword-whitelist '("TODO")))
-            (cl-letf (((symbol-function 'org-entry-get)
-                       (lambda (pom property &optional inherit literal-nil)
-                         (when (equal property "TODO")
-                           (cond
-                            ((equal pom marker1) "DONE")
-                            ((equal pom marker2) "CANCELLED")
-                            (t nil))))))
-              (let ((result (chime--apply-whitelist (list marker1 marker2))))
-                (should (equal result '())))))))
+            (let ((result (chime--apply-whitelist (list marker1 marker2))))
+              (should (equal result '()))))))
     (test-chime-apply-whitelist-teardown)))
 
 ;;; Error Cases
@@ -253,14 +202,12 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
       (with-temp-buffer
         (org-mode)
         (insert "* Entry without TODO keyword\n")
-        (let ((marker1 (copy-marker (point)))
+        (goto-char (point-min))
+        (let ((marker1 (point-marker))
               (chime-keyword-whitelist '("TODO")))
-          (cl-letf (((symbol-function 'org-entry-get)
-                     (lambda (pom property &optional inherit literal-nil)
-                       nil)))
-            (let ((result (chime--apply-whitelist (list marker1))))
-              ;; Should filter out marker with nil keyword
-              (should (equal result '()))))))
+          (let ((result (chime--apply-whitelist (list marker1))))
+            ;; Should filter out marker with nil keyword (not in whitelist)
+            (should (= (length result) 0)))))
     (test-chime-apply-whitelist-teardown)))
 
 (ert-deftest test-chime-apply-whitelist-handles-nil-tags-gracefully ()
@@ -270,13 +217,12 @@ Returns a marker with mocked org-entry-get and chime--get-tags."
       (with-temp-buffer
         (org-mode)
         (insert "* Entry without tags\n")
-        (let ((marker1 (copy-marker (point)))
-              (chime-tags-whitelist '("work")))
-          (cl-letf (((symbol-function 'chime--get-tags)
-                     (lambda (pom) nil)))
-            (let ((result (chime--apply-whitelist (list marker1))))
-              ;; Should filter out marker with nil tags
-              (should (equal result '()))))))
+        (goto-char (point-min))
+        (let ((marker1 (point-marker))
+              (chime-tags-whitelist '("urgent")))
+          (let ((result (chime--apply-whitelist (list marker1))))
+            ;; Should filter out marker with nil tags (not in whitelist)
+            (should (= (length result) 0)))))
     (test-chime-apply-whitelist-teardown)))
 
 (provide 'test-chime-apply-whitelist)

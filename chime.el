@@ -437,7 +437,7 @@ Combines keyword, tag, and custom predicate whitelists."
   (->> `([,chime-keyword-whitelist
           (lambda (it)
             (-contains-p chime-keyword-whitelist
-                         (org-entry-get it "TODO")))]
+                         (org-with-point-at it (org-get-todo-state))))]
 
          [,chime-tags-whitelist
           (lambda (it)
@@ -456,7 +456,7 @@ Combines keyword, tag, and custom predicate blacklists."
   (->> `([,chime-keyword-blacklist
           (lambda (it)
             (-contains-p chime-keyword-blacklist
-                         (org-entry-get it "TODO")))]
+                         (org-with-point-at it (org-get-todo-state))))]
 
          [,chime-tags-blacklist
           (lambda (it)
