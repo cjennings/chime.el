@@ -49,6 +49,7 @@
   (chime-create-test-base-dir)
   ;; Reset modeline settings
   (setq chime-modeline-string nil)
+  (setq chime-enable-modeline t)
   (setq chime-modeline-lookahead 30)
   (setq chime-modeline-format " ⏰ %s"))
 
@@ -136,6 +137,41 @@
         (should-not chime-modeline-string))
     (test-chime-update-modeline-teardown)))
 
+(ert-deftest test-chime-update-modeline-normal-disabled-clears-modeline ()
+  "Test that chime-enable-modeline nil clears modeline even with valid event."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 (event-time (encode-time 0 10 14 24 10 2025))
+                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+                          (title . "Team Meeting")))
+                 (events (list event)))
+        (setq chime-enable-modeline nil)
+        (chime--update-modeline events)
+        ;; Should NOT set modeline string when disabled
+        (should-not chime-modeline-string))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-normal-enabled-updates-modeline ()
+  "Test that chime-enable-modeline t allows normal modeline updates."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 (event-time (encode-time 0 10 14 24 10 2025))
+                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+                          (title . "Team Meeting")))
+                 (events (list event)))
+        (setq chime-enable-modeline t)
+        (chime--update-modeline events)
+        ;; Should set modeline string when enabled
+        (should chime-modeline-string)
+        (should (string-match-p "Team Meeting" chime-modeline-string)))
+    (test-chime-update-modeline-teardown)))
+
 ;;; Boundary Cases
 
 (ert-deftest test-chime-update-modeline-no-events-clears-modeline ()
@@ -180,6 +216,24 @@
         (chime--update-modeline events)
         (should chime-modeline-string)
         (should (string-match-p "Boundary Event" chime-modeline-string)))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-boundary-disabled-overrides-lookahead ()
+  "Test that chime-enable-modeline nil overrides positive lookahead."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 (event-time (encode-time 0 10 14 24 10 2025))
+                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+                          (title . "Team Meeting")))
+                 (events (list event)))
+        ;; Even with positive lookahead, disabled should prevent updates
+        (setq chime-enable-modeline nil)
+        (setq chime-modeline-lookahead 30)
+        (chime--update-modeline events)
+        (should-not chime-modeline-string))
     (test-chime-update-modeline-teardown)))
 
 ;;; Error Cases

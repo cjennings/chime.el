@@ -17,7 +17,7 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 - *Audible chime sound* when notifications are displayed. 
 - *Modeline display* of next upcoming event with customizable lookahead
 - Multiple notification times per event (e.g., 5 minutes before and at event time)
-- Works with SCHEDULED and DEADLINE and plain timestamps
+- Works with SCHEDULED and DEADLINE and just plain ol' regular timestamps
 - Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
 - Per-event notification customization via properties
 - Async background checking (runs every minute)

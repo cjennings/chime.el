@@ -192,10 +192,18 @@ Each string specifies a time of day when day-wide events should trigger."
   :group 'chime
   :type 'string)
 
+(defcustom chime-enable-modeline t
+  "Whether to display upcoming events in the modeline.
+When nil, chime will not modify the modeline at all."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'boolean)
+
 (defcustom chime-modeline-lookahead 30
   "Minutes ahead to look for next event to display in modeline.
 Should be larger than notification alert times for advance awareness.
-Set to 0 to disable modeline display."
+Set to 0 to disable modeline display.
+This setting only takes effect when `chime-enable-modeline' is non-nil."
   :package-version '(chime . "0.5.1")
   :group 'chime
   :type 'integer)
@@ -394,7 +402,8 @@ Returns a list of notification messages"
 (defun chime--update-modeline (events)
   "Update modeline with next upcoming event from EVENTS.
 Only shows events within `chime-modeline-lookahead' minutes."
-  (if (or (not chime-modeline-lookahead)
+  (if (or (not chime-enable-modeline)
+          (not chime-modeline-lookahead)
           (zerop chime-modeline-lookahead))
       (setq chime-modeline-string nil)
     (let ((soonest-event nil)
@@ -730,7 +739,8 @@ if needed."
       (progn
         (chime--start)
         ;; Add modeline string to global-mode-string
-        (when (> chime-modeline-lookahead 0)
+        (when (and chime-enable-modeline
+                   (> chime-modeline-lookahead 0))
           (if global-mode-string
               (add-to-list 'global-mode-string 'chime-modeline-string 'append)
             (setq global-mode-string '("" chime-modeline-string)))))
