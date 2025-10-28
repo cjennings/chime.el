@@ -554,11 +554,15 @@ Returns a list of notification messages"
        (--map (chime--notification-text `(,(caar it) . ,(cadr it)) event))))
 
 (defun chime--jump-to-event (event)
-  "Jump to EVENT's org entry in its file."
+  "Jump to EVENT's org entry in its file.
+Reconstructs marker from serialized file path and position."
   (interactive)
-  (when-let ((marker (cdr (assoc 'marker event))))
-    (org-goto-marker-or-bmk marker)
-    (org-show-entry)))
+  (when-let* ((file (cdr (assoc 'marker-file event)))
+              (pos (cdr (assoc 'marker-pos event))))
+    (when (file-exists-p file)
+      (find-file file)
+      (goto-char pos)
+      (org-show-entry))))
 
 (defun chime--format-event-for-tooltip (event-time-str minutes-until title)
   "Format a single event line for tooltip display.
@@ -979,11 +983,15 @@ standard notification interval (`chime-alert-time')."
 
 (defun chime--gather-info (marker)
   "Collect information about an event.
-MARKER acts like event's identifier."
+MARKER acts like event's identifier.
+Returns file path and position instead of marker object for proper
+async serialization (markers can't be serialized across processes,
+especially when buffer names contain angle brackets)."
   `((times . (,(chime--extract-time marker)))
     (title . ,(chime--extract-title marker))
     (intervals . ,(chime--extract-notication-intervals marker))
-    (marker . ,marker)))
+    (marker-file . ,(buffer-file-name (marker-buffer marker)))
+    (marker-pos . ,(marker-position marker))))
 
 (defun chime--stop ()
   "Stop the notification timer and cancel any in-progress check."

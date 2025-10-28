@@ -74,7 +74,8 @@
             (should (assoc 'times info))
             (should (assoc 'title info))
             (should (assoc 'intervals info))
-            (should (assoc 'marker info))
+            (should (assoc 'marker-file info))
+            (should (assoc 'marker-pos info))
             ;; Title should be extracted
             (should (string-equal "Team Meeting" (cdr (assoc 'title info))))
             ;; Intervals should include default alert time
@@ -342,6 +343,92 @@
             ;; Title should still be sanitized
             (should (string-equal "Meeting (Team)" (cdr (assoc 'title info))))))
         (kill-buffer test-buffer))
+    (test-chime-gather-info-teardown)))
+
+(ert-deftest test-chime-gather-info-serializable-without-marker-object ()
+  "Test that gather-info returns serializable data without marker object.
+
+This tests the fix for the bug where marker objects from buffers with names
+like 'todo.org<jr-estate>' could not be serialized because angle brackets in
+the buffer name created invalid Lisp syntax: #<marker ... in todo.org<dir>>
+
+The fix returns marker-file and marker-pos instead of the marker object,
+which can be properly serialized regardless of buffer name."
+  (test-chime-gather-info-setup)
+  (unwind-protect
+      (let* ((test-file (chime-create-temp-test-file-with-content
+                          "* TODO Test Task\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+             (test-buffer (find-file-noselect test-file)))
+        (with-current-buffer test-buffer
+          (org-mode)
+          (goto-char (point-min))
+          (let* ((marker (point-marker))
+                 (info (chime--gather-info marker)))
+
+            ;; Should have marker-file and marker-pos, NOT marker object
+            (should (assoc 'marker-file info))
+            (should (assoc 'marker-pos info))
+            (should-not (assoc 'marker info))
+
+            ;; The file path and position should be correct
+            (should (string-equal test-file (cdr (assoc 'marker-file info))))
+            (should (numberp (cdr (assoc 'marker-pos info))))
+            (should (> (cdr (assoc 'marker-pos info)) 0))
+
+            ;; The entire structure should be serializable via format %S and read
+            ;; This simulates what async.el does with the data
+            (let* ((serialized (format "%S" info))
+                   (deserialized (read serialized)))
+              ;; Should deserialize without error
+              (should (listp deserialized))
+              ;; Should have the same data structure
+              (should (string-equal (cdr (assoc 'title deserialized))
+                                  (cdr (assoc 'title info))))
+              (should (string-equal (cdr (assoc 'marker-file deserialized))
+                                  (cdr (assoc 'marker-file info))))
+              (should (equal (cdr (assoc 'marker-pos deserialized))
+                           (cdr (assoc 'marker-pos info)))))))
+        (kill-buffer test-buffer))
+    (test-chime-gather-info-teardown)))
+
+(ert-deftest test-chime-gather-info-special-chars-in-title ()
+  "Test that titles with Lisp special characters serialize correctly.
+
+Tests characters that could theoretically cause Lisp read syntax errors:
+- Double quotes: string delimiters
+- Backslashes: escape characters
+- Semicolons: comment start
+- Backticks/commas: quasiquote syntax
+- Hash symbols: reader macros
+
+These should all be properly escaped by format %S."
+  (test-chime-gather-info-setup)
+  (unwind-protect
+      (let ((special-titles '(("Quote in \"middle\"" . "Quote in \"middle\"")
+                             ("Backslash\\path\\here" . "Backslash\\path\\here")
+                             ("Semicolon; not a comment" . "Semicolon; not a comment")
+                             ("Backtick `and` comma, here" . "Backtick `and` comma, here")
+                             ("Hash #tag and @mention" . "Hash #tag and @mention")
+                             ("Mixed: \"foo\\bar;baz`qux#\"" . "Mixed: \"foo\\bar;baz`qux#\""))))
+        (dolist (title-pair special-titles)
+          (let* ((title (car title-pair))
+                 (expected (cdr title-pair))
+                 (test-content (format "* TODO %s\nSCHEDULED: <2025-10-28 Tue 14:00>\n" title))
+                 (test-file (chime-create-temp-test-file-with-content test-content))
+                 (test-buffer (find-file-noselect test-file)))
+            (with-current-buffer test-buffer
+              (org-mode)
+              (goto-char (point-min))
+              (let* ((marker (point-marker))
+                     (info (chime--gather-info marker)))
+                ;; Title should be preserved exactly
+                (should (string-equal expected (cdr (assoc 'title info))))
+                ;; Full structure should serialize/deserialize correctly
+                (let* ((serialized (format "%S" info))
+                       (deserialized (read serialized)))
+                  (should (listp deserialized))
+                  (should (string-equal expected (cdr (assoc 'title deserialized)))))))
+            (kill-buffer test-buffer))))
     (test-chime-gather-info-teardown)))
 
 (provide 'test-chime-gather-info)
