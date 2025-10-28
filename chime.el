@@ -139,6 +139,44 @@ Passed to `format-time-string' when displaying notification times."
   :group 'chime
   :type 'string)
 
+(defcustom chime-time-left-format-at-event "right now"
+  "Format string for when event time has arrived (0 or negative seconds).
+This is a literal string with no format codes."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'string)
+
+(defcustom chime-time-left-format-short "in %M"
+  "Format string for times under 1 hour.
+Uses `format-seconds' codes:
+  %m - minutes as number only (e.g., \"37\")
+  %M - minutes with unit name (e.g., \"37 minutes\")
+
+Examples:
+  \"in %M\"      -> \"in 37 minutes\"
+  \"in %mm\"     -> \"in 37m\"
+  \"%m min\"     -> \"37 min\""
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'string)
+
+(defcustom chime-time-left-format-long "in %H %M"
+  "Format string for times 1 hour or longer.
+Uses `format-seconds' codes:
+  %h - hours as number only (e.g., \"1\")
+  %H - hours with unit name (e.g., \"1 hour\")
+  %m - minutes as number only (e.g., \"37\")
+  %M - minutes with unit name (e.g., \"37 minutes\")
+
+Examples:
+  \"in %H %M\"       -> \"in 1 hour 37 minutes\"
+  \"in %hh %mm\"     -> \"in 1h 37m\"
+  \"(%h hr %m min)\" -> \"(1 hr 37 min)\"
+  \"%hh%mm\"         -> \"1h37m\""
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'string)
+
 (defcustom chime-predicate-whitelist nil
   "Receive notifications for events matching these predicates only.
 Each function should take an event POM and return non-nil iff that event should
@@ -309,12 +347,14 @@ Returns non-nil only if the timestamp includes HH:MM time information."
   (--filter (chime--has-timestamp (car it)) times))
 
 (defun chime--time-left (seconds)
-  "Human-friendly representation for SECONDS."
+  "Human-friendly representation for SECONDS.
+Format is controlled by `chime-time-left-format-at-event',
+`chime-time-left-format-short', and `chime-time-left-format-long'."
   (-> seconds
        (pcase
-         ((pred (>= 0)) "right now")
-         ((pred (>= 3600)) "in %M")
-         (_ "in %H %M"))
+         ((pred (>= 0)) chime-time-left-format-at-event)
+         ((pred (>= 3600)) chime-time-left-format-short)
+         (_ chime-time-left-format-long))
 
        (format-seconds seconds)))
 
