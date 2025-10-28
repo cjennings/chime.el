@@ -181,5 +181,46 @@
         (should (= 0 (length result))))
     (test-chime-check-event-teardown)))
 
+(ert-deftest test-chime-check-event-error-nil-event-handles-gracefully ()
+  "Test that nil event parameter doesn't crash."
+  (test-chime-check-event-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time)))
+        ;; Should not error with nil event
+        (should-not (condition-case nil
+                        (progn (chime--check-event nil) nil)
+                      (error t))))
+    (test-chime-check-event-teardown)))
+
+(ert-deftest test-chime-check-event-error-invalid-event-structure-handles-gracefully ()
+  "Test that invalid event structure doesn't crash."
+  (test-chime-check-event-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ;; Event missing required fields
+                 (invalid-event '((invalid . "structure"))))
+        ;; Should not crash even with invalid event
+        (should-not (condition-case nil
+                        (progn (chime--check-event invalid-event) nil)
+                      (error t))))
+    (test-chime-check-event-teardown)))
+
+(ert-deftest test-chime-check-event-error-event-with-nil-times-handles-gracefully ()
+  "Test that event with nil times field doesn't crash."
+  (test-chime-check-event-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 (event '((times . nil)
+                          (title . "Event with nil times")
+                          (intervals . (10)))))
+        ;; Should not crash
+        (should-not (condition-case nil
+                        (progn (chime--check-event event) nil)
+                      (error t))))
+    (test-chime-check-event-teardown)))
+
 (provide 'test-chime-check-event)
 ;;; test-chime-check-event.el ends here

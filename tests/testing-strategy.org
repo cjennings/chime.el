@@ -130,9 +130,9 @@ This document outlines the ERT test strategy for the CHIME package, prioritizing
 *Test Coverage:*
 - Normal: Valid events with various configurations
 - Boundary: Events at exact notification time, multiple timestamps
-- Error: Malformed events, missing required fields
+- Error: Malformed events, missing required fields, nil events, invalid structures
 
-*Status:* ✅ Complete - 7 tests, all passing, no bugs found
+*Status:* ✅ Complete - 10 tests, all passing, comprehensive error handling
 
 ** TIER 2: Key Features (Should Test)
 
@@ -153,10 +153,10 @@ This document outlines the ERT test strategy for the CHIME package, prioritizing
 
 *Test Coverage:*
 - Normal: Single event, multiple events, events outside window
-- Boundary: Event exactly at lookahead boundary, 0 lookahead
-- Error: No events, all events outside window, malformed events
+- Boundary: Event exactly at lookahead boundary, 0 lookahead, day-wide filtering
+- Error: No events, all events outside window, malformed events, nil events, invalid structures
 
-*Status:* ✅ Complete - 8 tests, all passing, no bugs found
+*Status:* ✅ Complete - 14 tests, all passing, comprehensive error handling
 
 *** DONE Test chime--notify
 :PROPERTIES:
@@ -177,7 +177,28 @@ This document outlines the ERT test strategy for the CHIME package, prioritizing
 - Boundary: Sound disabled, custom sound file
 - Error: Missing sound file, invalid file path, permission errors
 
-*Status:* ✅ Complete - 8 tests, all passing, no bugs found
+*Status:* ✅ Complete - 9 tests, all passing, no bugs found
+
+*** DONE Test chime--process-notifications
+:PROPERTIES:
+:PRIORITY: A
+:TIER: 1
+:END:
+
+*Why:* Orchestrates notification processing. Core function created during refactoring that handles deduplication and day-wide alerts.
+
+*Risk:*
+- Duplicate notifications sent to users
+- Day-wide notifications not triggered at correct time
+- Invalid event structures cause crashes
+- Notification deduplication fails
+
+*Test Coverage:*
+- Normal: Single event, multiple events, deduplication, day-wide notifications
+- Boundary: Empty events, no matching notifications, single event edge case
+- Error: Nil events, invalid event structures, mixed valid/invalid events
+
+*Status:* ✅ Complete - 11 tests, all passing, comprehensive coverage
 
 *** DONE Test chime--notification-text
 :PROPERTIES:
@@ -305,8 +326,14 @@ These methods are either trivial, covered by higher-level tests, or difficult to
 ** SKIP chime--retrieve-events
 *Reason:* Complex org-agenda integration using async. Very difficult to unit test. Better tested via integration tests.
 
-** SKIP chime--check-events
-*Reason:* Already well-covered by existing integration tests (chime-tests.el). Orchestration function that calls testable components.
+** SKIP chime--fetch-and-process
+*Reason:* Async orchestration function that manages process state internally. Difficult to unit test. Better tested via integration tests. Used by both =chime-check= and =chime-refresh-modeline=.
+
+** SKIP chime-check
+*Reason:* Public interactive command that uses =chime--fetch-and-process= with a callback. Orchestration function that calls testable components (=chime--process-notifications= and =chime--update-modeline=). Integration tested.
+
+** SKIP chime-refresh-modeline
+*Reason:* Public interactive command that uses =chime--fetch-and-process= with a modeline-only callback. Orchestration function. Integration tested.
 
 ** SKIP Day-wide event functions
 *Functions:* =chime-current-time-is-day-wide-time=, =chime-day-wide-notifications=, =chime-display-as-day-wide-event=, =chime-event-has-any-day-wide-timestamp=, =chime-event-has-any-passed-time=, =chime--day-wide-notification-text=

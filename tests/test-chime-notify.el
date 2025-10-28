@@ -240,5 +240,21 @@
           (should alert-called)))
     (test-chime-notify-teardown)))
 
+(ert-deftest test-chime-notify-error-nil-message-handles-gracefully ()
+  "Test that nil message parameter doesn't crash."
+  (test-chime-notify-setup)
+  (unwind-protect
+      (let ((alert-called nil))
+        (cl-letf* ((chime-play-sound nil)
+                   ((symbol-function 'alert)
+                    (lambda (msg &rest args) (setq alert-called t))))
+          ;; Should not error with nil message
+          (should-not (condition-case nil
+                          (progn (chime--notify nil) nil)
+                        (error t)))
+          ;; Alert should still be called
+          (should alert-called)))
+    (test-chime-notify-teardown)))
+
 (provide 'test-chime-notify)
 ;;; test-chime-notify.el ends here

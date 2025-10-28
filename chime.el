@@ -835,12 +835,9 @@ Runs an immediate check for smoother experience."
        (run-at-time it chime-check-interval 'chime-check)
        (setf chime--timer it)))
 
-(defun chime--check-events (events)
+(defun chime--process-notifications (events)
   "Process EVENTS and send notifications for upcoming items.
-Clears the async process flag, sends notifications for matching
-events, handles day-wide alerts, and updates the modeline."
-  (setq chime--process nil)
-  ;; Handle notifications
+Handles both regular event notifications and day-wide alerts."
   (-each
       (->> events
            (-map 'chime--check-event)
@@ -849,17 +846,12 @@ events, handles day-wide alerts, and updates the modeline."
     'chime--notify)
   (when (chime-current-time-is-day-wide-time)
     (mapc 'chime--notify
-          (chime-day-wide-notifications events)))
-  ;; Update modeline with next upcoming event
-  (chime--update-modeline events)
-  (setq chime--last-check-time (current-time)))
+          (chime-day-wide-notifications events))))
 
-;;;###autoload
-(defun chime-check ()
-  "Parse agenda view and notify about upcoming events.
-
-Do nothing if a check is already in progress in the background."
-  (interactive)
+(defun chime--fetch-and-process (callback)
+  "Asynchronously fetch events from agenda and invoke CALLBACK with them.
+Manages async process state and last-check-time internally.
+Does nothing if a check is already in progress."
   (unless (and chime--process
                (process-live-p chime--process))
     (setq chime--process
@@ -868,7 +860,32 @@ Do nothing if a check is already in progress in the background."
                 (async-process-noquery-on-exit t))
             (async-start
              (chime--retrieve-events)
-             'chime--check-events)))))
+             (lambda (events)
+               (setq chime--process nil)
+               (setq chime--last-check-time (current-time))
+               (funcall callback events)))))))
+
+;;;###autoload
+(defun chime-check ()
+  "Parse agenda view and notify about upcoming events.
+
+Do nothing if a check is already in progress in the background."
+  (interactive)
+  (chime--fetch-and-process
+   (lambda (events)
+     (chime--process-notifications events)
+     (chime--update-modeline events))))
+
+;;;###autoload
+(defun chime-refresh-modeline ()
+  "Update modeline display with latest events without sending notifications.
+
+Useful after external calendar sync operations (e.g., org-gcal-sync).
+Does nothing if a check is already in progress in the background."
+  (interactive)
+  (chime--fetch-and-process
+   (lambda (events)
+     (chime--update-modeline events))))
 
 ;;;###autoload
 (define-minor-mode chime-mode

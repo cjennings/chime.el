@@ -254,5 +254,51 @@
         (should-not chime-modeline-string))
     (test-chime-update-modeline-teardown)))
 
+(ert-deftest test-chime-update-modeline-error-nil-events-handles-gracefully ()
+  "Test that nil events parameter doesn't crash."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* (((symbol-function 'current-time) (lambda () (encode-time 0 0 14 24 10 2025)))
+                 ((symbol-function 'force-mode-line-update) (lambda ())))
+        ;; Should not error with nil events
+        (should-not (condition-case nil
+                        (progn (chime--update-modeline nil) nil)
+                      (error t)))
+        ;; Modeline should remain unset or cleared
+        (should-not chime-modeline-string))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-error-invalid-event-structure-handles-gracefully ()
+  "Test that invalid event structure doesn't crash."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* (((symbol-function 'current-time) (lambda () (encode-time 0 0 14 24 10 2025)))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 ;; Event missing required fields
+                 (invalid-event '((invalid . "structure")))
+                 (events (list invalid-event)))
+        ;; Should not crash even with invalid events
+        (should-not (condition-case nil
+                        (progn (chime--update-modeline events) nil)
+                      (error t))))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-error-event-with-nil-times-handles-gracefully ()
+  "Test that event with nil times field doesn't crash."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* (((symbol-function 'current-time) (lambda () (encode-time 0 0 14 24 10 2025)))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 (event '((times . nil)
+                          (title . "Event with nil times")))
+                 (events (list event)))
+        ;; Should not crash
+        (should-not (condition-case nil
+                        (progn (chime--update-modeline events) nil)
+                      (error t)))
+        ;; Modeline should not be set
+        (should-not chime-modeline-string))
+    (test-chime-update-modeline-teardown)))
+
 (provide 'test-chime-update-modeline)
 ;;; test-chime-update-modeline.el ends here
