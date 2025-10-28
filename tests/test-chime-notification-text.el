@@ -48,7 +48,13 @@
   "Setup function run before each test."
   (chime-create-test-base-dir)
   ;; Reset display format to default
-  (setq chime-display-time-format-string "%I:%M %p"))
+  (setq chime-display-time-format-string "%I:%M %p")
+  ;; Reset notification text format to default
+  (setq chime-notification-text-format "%t at %T (%u)")
+  ;; Reset time-left formats to defaults
+  (setq chime-time-left-format-at-event "right now")
+  (setq chime-time-left-format-short "in %M")
+  (setq chime-time-left-format-long "in %H %M"))
 
 (defun test-chime-notification-text-teardown ()
   "Teardown function run after each test."
@@ -198,6 +204,93 @@
         (should (stringp result))
         (should (string-match-p "02:30 PM" result))
         (should (string-match-p "in 10 minutes" result)))
+    (test-chime-notification-text-teardown)))
+
+;;; Custom Format Cases
+
+(ert-deftest test-chime-notification-text-custom-title-only ()
+  "Test custom format showing title only."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (chime-notification-text-format "%t"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Team Meeting" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-title-and-time-no-countdown ()
+  "Test custom format with title and time, no countdown."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (chime-notification-text-format "%t at %T"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Team Meeting at 02:30 PM" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-title-and-countdown-no-time ()
+  "Test custom format with title and countdown, no time."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (chime-notification-text-format "%t (%u)"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Team Meeting (in 10 minutes)" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-separator ()
+  "Test custom format with custom separator."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (chime-notification-text-format "%t - %T"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Team Meeting - 02:30 PM" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-order-time-first ()
+  "Test custom format with time before title."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Team Meeting")))
+             (chime-notification-text-format "%T: %t"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "02:30 PM: Team Meeting" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-compact-format ()
+  "Test custom compact format."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-notification-text-format "%t@%T"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Meeting@02:30 PM" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-custom-with-compact-time-left ()
+  "Test custom format with compact time-left format."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-notification-text-format "%t (%u)")
+             (chime-time-left-format-short "in %mm"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-equal "Meeting (in 10m)" result))))
     (test-chime-notification-text-teardown)))
 
 (provide 'test-chime-notification-text)

@@ -253,6 +253,23 @@ This setting only takes effect when `chime-enable-modeline' is non-nil."
   :group 'chime
   :type 'string)
 
+(defcustom chime-notification-text-format "%t at %T (%u)"
+  "Format string for notification text display.
+Available placeholders:
+  %t - Event title
+  %T - Event time (formatted per `chime-display-time-format-string')
+  %u - Time until event (formatted per time-left format settings)
+
+Examples:
+  \"%t at %T (%u)\"  -> \"Team Meeting at 02:30 PM (in 10 minutes)\" (default)
+  \"%t at %T\"       -> \"Team Meeting at 02:30 PM\" (no countdown)
+  \"%t (%u)\"        -> \"Team Meeting (in 10 minutes)\" (no time)
+  \"%t - %T\"        -> \"Team Meeting - 02:30 PM\" (custom separator)
+  \"%t\"             -> \"Team Meeting\" (title only)"
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'string)
+
 (defcustom chime-play-sound t
   "Whether to play a sound when notifications are displayed.
 When non-nil, plays the sound file specified in `chime-sound-file'."
@@ -365,11 +382,12 @@ Format is controlled by `chime-time-left-format-at-event',
    (encode-time (org-parse-time-string time-string))))
 
 (defun chime--notification-text (str-interval event)
-  "For given STR-INTERVAL list and EVENT get notification wording."
-  (format "%s at %s (%s)"
-          (cdr (assoc 'title event))
-          (chime--get-hh-mm-from-org-time-string (car str-interval))
-          (chime--time-left (* 60 (cdr str-interval)))))
+  "For given STR-INTERVAL list and EVENT get notification wording.
+Format is controlled by `chime-notification-text-format'."
+  (format-spec chime-notification-text-format
+               `((?t . ,(or (cdr (assoc 'title event)) ""))
+                 (?T . ,(chime--get-hh-mm-from-org-time-string (car str-interval)))
+                 (?u . ,(chime--time-left (* 60 (cdr str-interval)))))))
 
 (defun chime-get-minutes-into-day (time)
   "Get minutes elapsed since midnight for TIME string."
