@@ -908,13 +908,64 @@ string, cdr holds time in list-of-integer format."
     ;; Combine property and plain timestamps, removing duplicates and nils
     (-non-nil (append property-timestamps plain-timestamps))))
 
+(defun chime--sanitize-title (title)
+  "Sanitize TITLE to prevent Lisp read syntax errors during async serialization.
+Balances unmatched parentheses, brackets, and braces by adding matching pairs.
+Returns sanitized title or empty string if TITLE is nil."
+  (if (not title)
+      ""
+    (let ((chars (string-to-list title))
+          (stack '())  ; Stack to track opening delimiters in order
+          (result '()))
+      ;; Process each character
+      (dolist (char chars)
+        (cond
+         ;; Opening delimiters - add to stack and result
+         ((memq char '(?\( ?\[ ?\{))
+          (push char stack)
+          (push char result))
+         ;; Closing delimiters - check if they match
+         ((eq char ?\))
+          (if (and stack (eq (car stack) ?\())
+              (progn
+                (pop stack)
+                (push char result))
+            ;; Unmatched closing paren - skip it
+            nil))
+         ((eq char ?\])
+          (if (and stack (eq (car stack) ?\[))
+              (progn
+                (pop stack)
+                (push char result))
+            ;; Unmatched closing bracket - skip it
+            nil))
+         ((eq char ?\})
+          (if (and stack (eq (car stack) ?\{))
+              (progn
+                (pop stack)
+                (push char result))
+            ;; Unmatched closing brace - skip it
+            nil))
+         ;; Regular characters - add to result
+         (t
+          (push char result))))
+      ;; Add closing delimiters for any remaining opening delimiters
+      (dolist (opener stack)
+        (cond
+         ((eq opener ?\() (push ?\) result))
+         ((eq opener ?\[) (push ?\] result))
+         ((eq opener ?\{) (push ?\} result))))
+      ;; Convert back to string (reverse because we built it backwards)
+      (concat (nreverse result)))))
+
 (defun chime--extract-title (marker)
   "Extract event title from MARKER.
-MARKER acts like the event's identifier."
+MARKER acts like the event's identifier.
+Title is sanitized to prevent Lisp read syntax errors."
   (org-with-point-at marker
     (-let (((_lvl _reduced-lvl _todo _priority title _tags)
             (org-heading-components)))
-      title)))
+      (chime--sanitize-title title))))
 
 (defun chime--extract-notication-intervals (marker)
   "Extract notification intervals from the event's properties.
