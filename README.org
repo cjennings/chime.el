@@ -15,12 +15,14 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 
 - *Visual notifications* with customizable alert times
 - *Audible chime sound* when notifications are displayed
-- *Modeline display* of next upcoming event with extensive customization:
+- *Interactive modeline display* of next upcoming event with extensive customization:
   - Enable/disable modeline modifications
+  - Hover tooltip showing all upcoming events grouped by day
+  - Click to jump directly to event's org entry
   - Customize notification text format (show/hide time, countdown, or title)
   - Choose 12-hour or 24-hour time display
   - Customize time-until format (verbose or compact)
-  - Configurable lookahead window
+  - Configurable lookahead window and tooltip event limit
 - Multiple notification times per event (e.g., 5 minutes before and at event time)
 - Works with SCHEDULED and DEADLINE and just plain ol' regular timestamps
 - Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
@@ -179,6 +181,43 @@ Show the next upcoming event in your modeline:
 The modeline will display the soonest event within the lookahead window, formatted as:
 - Default: =⏰ Meeting with Team at 02:30 PM (in 15 minutes)=
 - Updates automatically every minute
+
+**** Interactive Modeline Features
+
+The modeline text is interactive - you can click it and hover for more information:
+
+***** Tooltip
+
+Hover your mouse over the modeline event to see a tooltip showing all upcoming events within the lookahead window, grouped by day:
+
+#+BEGIN_EXAMPLE
+Upcoming Events:
+
+Today, Oct 28:
+─────────────
+Team Meeting at 02:10 PM (in 10 minutes)
+Code Review at 02:30 PM (in 30 minutes)
+Coffee break at 02:45 PM (in 45 minutes)
+
+Tomorrow, Oct 29:
+─────────────
+Sprint Planning at 09:00 AM (tomorrow)
+Quarterly Review at 02:00 PM (tomorrow)
+#+END_EXAMPLE
+
+The tooltip displays up to 5 events by default. Configure the maximum with:
+
+#+BEGIN_SRC elisp
+;; Show up to 10 events in tooltip
+(setq chime-modeline-tooltip-max-events 10)
+
+;; Show all events in lookahead window (no limit)
+(setq chime-modeline-tooltip-max-events nil)
+#+END_SRC
+
+***** Click to Jump
+
+Left-click the modeline event to jump directly to that event's org entry in its file. This is useful for quickly viewing or editing event details.
 
 **** Customizing Modeline Content
 

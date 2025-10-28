@@ -294,6 +294,14 @@ This setting only takes effect when `chime-enable-modeline' is non-nil."
   :group 'chime
   :type 'string)
 
+(defcustom chime-modeline-tooltip-max-events 5
+  "Maximum number of events to show in modeline tooltip.
+Set to nil to show all events within lookahead window."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(choice (integer :tag "Maximum events")
+                 (const :tag "Show all" nil)))
+
 (defcustom chime-notification-text-format "%t at %T (%u)"
   "Format string for notification text display.
 Available placeholders:
@@ -374,6 +382,10 @@ supported by your system."
 (defvar chime--next-event nil
   "Next upcoming event for modeline display.
 Stored as (EVENT-MSG . MINUTES-UNTIL) or nil if no upcoming event.")
+
+(defvar chime--upcoming-events nil
+  "List of upcoming events with full data for tooltip and clicking.
+Each event includes marker, title, times, and intervals.")
 
 (defvar chime-modeline-string nil
   "Modeline string showing next upcoming event.")
@@ -541,17 +553,111 @@ Returns a list of notification messages"
   (->> (chime--notifications event)
        (--map (chime--notification-text `(,(caar it) . ,(cadr it)) event))))
 
+(defun chime--jump-to-event (event)
+  "Jump to EVENT's org entry in its file."
+  (interactive)
+  (when-let ((marker (cdr (assoc 'marker event))))
+    (org-goto-marker-or-bmk marker)
+    (org-show-entry)))
+
+(defun chime--format-event-for-tooltip (event-time-str minutes-until title)
+  "Format a single event line for tooltip display.
+EVENT-TIME-STR is the time string, MINUTES-UNTIL is minutes until event,
+TITLE is the event title."
+  (let ((time-display (chime--get-hh-mm-from-org-time-string event-time-str))
+        (countdown (cond
+                    ((< minutes-until 1440) ;; Less than 24 hours
+                     (format "(in %s)" (chime--time-left (* minutes-until 60))))
+                    (t
+                     (let ((days (/ minutes-until 1440)))
+                       (format "(in %d day%s)" days (if (> days 1) "s" "")))))))
+    (format "%s at %s %s" title time-display countdown)))
+
+(defun chime--group-events-by-day (upcoming-events)
+  "Group UPCOMING-EVENTS by day.
+Returns an alist of (DATE-STRING . EVENTS-LIST)."
+  (let ((grouped '())
+        (now (current-time)))
+    (dolist (item upcoming-events)
+      (let* ((event-time (cdr (nth 1 item)))
+             (minutes-until (nth 2 item))
+             (date-string (cond
+                           ((< minutes-until 1440) ;; Today
+                            (format-time-string "Today, %b %d" now))
+                           ((< minutes-until 2880) ;; Tomorrow
+                            (format-time-string "Tomorrow, %b %d"
+                                               (time-add now (days-to-time 1))))
+                           (t ;; Future days
+                            (format-time-string "%A, %b %d" event-time)))))
+        (let ((day-group (assoc date-string grouped)))
+          (if day-group
+              (setcdr day-group (append (cdr day-group) (list item)))
+            (push (cons date-string (list item)) grouped)))))
+    (nreverse grouped)))
+
+(defun chime--make-tooltip (upcoming-events)
+  "Generate tooltip text showing UPCOMING-EVENTS grouped by day."
+  (if (null upcoming-events)
+      nil
+    (let* ((max-events (or chime-modeline-tooltip-max-events (length upcoming-events)))
+           (events-to-show (seq-take upcoming-events max-events))
+           (remaining (- (length upcoming-events) (length events-to-show)))
+           (grouped (chime--group-events-by-day events-to-show))
+           (lines '("Upcoming Events:\n")))
+      ;; Build tooltip text
+      (dolist (day-group grouped)
+        (let ((date-str (car day-group))
+              (day-events (cdr day-group)))
+          (push (format "\n%s:\n" date-str) lines)
+          (push "─────────────\n" lines)
+          (dolist (item day-events)
+            (let* ((event (car item))
+                   (event-time-str (car (nth 1 item)))
+                   (minutes-until (nth 2 item))
+                   (title (cdr (assoc 'title event))))
+              (push (format "%s\n"
+                           (chime--format-event-for-tooltip
+                            event-time-str minutes-until title))
+                    lines)))))
+      ;; Add "... and N more" if needed
+      (when (> remaining 0)
+        (push (format "\n... and %d more event%s"
+                     remaining
+                     (if (> remaining 1) "s" ""))
+              lines))
+      (apply #'concat (nreverse lines)))))
+
+(defun chime--propertize-modeline-string (text soonest-event)
+  "Add tooltip and click handler to modeline TEXT for SOONEST-EVENT."
+  (if (null chime--upcoming-events)
+      text
+    (let ((map (make-sparse-keymap))
+          (tooltip (chime--make-tooltip chime--upcoming-events)))
+      (define-key map [mode-line mouse-1]
+        (lambda ()
+          (interactive)
+          (chime--jump-to-event soonest-event)))
+      (propertize text
+                  'help-echo tooltip
+                  'mouse-face 'mode-line-highlight
+                  'local-map map))))
+
 (defun chime--update-modeline (events)
   "Update modeline with next upcoming event from EVENTS.
-Only shows events within `chime-modeline-lookahead' minutes."
+Only shows events within `chime-modeline-lookahead' minutes.
+Also generates tooltip showing all upcoming events grouped by day."
   (if (or (not chime-enable-modeline)
           (not chime-modeline-lookahead)
           (zerop chime-modeline-lookahead))
-      (setq chime-modeline-string nil)
-    (let ((soonest-event nil)
+      (progn
+        (setq chime-modeline-string nil)
+        (setq chime--upcoming-events nil))
+    (let ((upcoming '())
+          (soonest-event-obj nil)
+          (soonest-event-text nil)
           (soonest-minutes nil)
           (now (current-time)))
-      ;; Find soonest event within lookahead window
+      ;; Collect ALL upcoming events within lookahead window
       (dolist (event events)
         (let* ((all-times (cadr (assoc 'times event)))
                (times (chime--filter-day-wide-events all-times)))
@@ -563,17 +669,27 @@ Only shows events within `chime-modeline-lookahead' minutes."
                         (minutes-until (/ seconds-until 60)))
               ;; Only consider future events within lookahead window
               (when (and (> minutes-until 0)
-                         (<= minutes-until chime-modeline-lookahead)
-                         (or (not soonest-minutes)
-                             (< minutes-until soonest-minutes)))
-                (setq soonest-minutes minutes-until)
-                (setq soonest-event
-                      (chime--notification-text
-                       `(,time-str . ,minutes-until) event)))))))
-      ;; Format and set modeline string
+                         (<= minutes-until chime-modeline-lookahead))
+                ;; Store in upcoming events list
+                (push (list event time-info minutes-until) upcoming)
+                ;; Track soonest for modeline display
+                (when (or (not soonest-minutes)
+                          (< minutes-until soonest-minutes))
+                  (setq soonest-minutes minutes-until)
+                  (setq soonest-event-obj event)
+                  (setq soonest-event-text
+                        (chime--notification-text
+                         `(,time-str . ,minutes-until) event))))))))
+      ;; Sort upcoming events by time (soonest first)
+      (setq upcoming (sort upcoming
+                          (lambda (a b) (< (nth 2 a) (nth 2 b)))))
+      (setq chime--upcoming-events upcoming)
+      ;; Format and set modeline string with text properties
       (setq chime-modeline-string
-            (when soonest-event
-              (format chime-modeline-format soonest-event)))
+            (when soonest-event-text
+              (chime--propertize-modeline-string
+               (format chime-modeline-format soonest-event-text)
+               soonest-event-obj)))
       (force-mode-line-update))))
 
 (defun chime--get-tags (marker)
@@ -815,7 +931,8 @@ standard notification interval (`chime-alert-time')."
 MARKER acts like event's identifier."
   `((times . (,(chime--extract-time marker)))
     (title . ,(chime--extract-title marker))
-    (intervals . ,(chime--extract-notication-intervals marker))))
+    (intervals . ,(chime--extract-notication-intervals marker))
+    (marker . ,marker)))
 
 (defun chime--stop ()
   "Stop the notification timer and cancel any in-progress check."

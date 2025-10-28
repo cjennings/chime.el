@@ -300,5 +300,111 @@
         (should-not chime-modeline-string))
     (test-chime-update-modeline-teardown)))
 
+;;; Upcoming Events State Tests
+
+(ert-deftest test-chime-update-modeline-upcoming-events-populated ()
+  "Test that chime--upcoming-events is populated with all events in window."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 ;; Three events within 30 minute window
+                 (event1-time (encode-time 0 5 14 24 10 2025))
+                 (event1 `((times . ((("<2025-10-24 Fri 14:05>" . ,event1-time))))
+                           (title . "Event 1")
+                           (marker . nil)))
+                 (event2-time (encode-time 0 10 14 24 10 2025))
+                 (event2 `((times . ((("<2025-10-24 Fri 14:10>" . ,event2-time))))
+                           (title . "Event 2")
+                           (marker . nil)))
+                 (event3-time (encode-time 0 25 14 24 10 2025))
+                 (event3 `((times . ((("<2025-10-24 Fri 14:25>" . ,event3-time))))
+                           (title . "Event 3")
+                           (marker . nil)))
+                 (events (list event1 event2 event3)))
+        (chime--update-modeline events)
+        ;; Should populate chime--upcoming-events
+        (should chime--upcoming-events)
+        ;; Should have all 3 events
+        (should (= 3 (length chime--upcoming-events))))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-upcoming-events-sorted ()
+  "Test that chime--upcoming-events are sorted by time (soonest first)."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 ;; Add events in reverse order
+                 (event1-time (encode-time 0 25 14 24 10 2025))
+                 (event1 `((times . ((("<2025-10-24 Fri 14:25>" . ,event1-time))))
+                           (title . "Latest Event")
+                           (marker . nil)))
+                 (event2-time (encode-time 0 10 14 24 10 2025))
+                 (event2 `((times . ((("<2025-10-24 Fri 14:10>" . ,event2-time))))
+                           (title . "Middle Event")
+                           (marker . nil)))
+                 (event3-time (encode-time 0 5 14 24 10 2025))
+                 (event3 `((times . ((("<2025-10-24 Fri 14:05>" . ,event3-time))))
+                           (title . "Soonest Event")
+                           (marker . nil)))
+                 (events (list event1 event2 event3)))
+        (chime--update-modeline events)
+        ;; First event should be soonest
+        (let* ((first-event (car chime--upcoming-events))
+               (first-event-obj (car first-event))
+               (first-title (cdr (assoc 'title first-event-obj))))
+          (should (string= "Soonest Event" first-title))))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-upcoming-events-cleared-when-disabled ()
+  "Test that chime--upcoming-events is cleared when modeline disabled."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 (event-time (encode-time 0 10 14 24 10 2025))
+                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+                          (title . "Test Event")
+                          (marker . nil)))
+                 (events (list event)))
+        ;; First populate with modeline enabled
+        (setq chime-enable-modeline t)
+        (chime--update-modeline events)
+        (should chime--upcoming-events)
+        ;; Now disable modeline
+        (setq chime-enable-modeline nil)
+        (chime--update-modeline events)
+        ;; Should clear chime--upcoming-events
+        (should-not chime--upcoming-events))
+    (test-chime-update-modeline-teardown)))
+
+(ert-deftest test-chime-update-modeline-upcoming-events-only-within-window ()
+  "Test that only events within lookahead window are stored."
+  (test-chime-update-modeline-setup)
+  (unwind-protect
+      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
+                 ((symbol-function 'current-time) (lambda () mock-time))
+                 ((symbol-function 'force-mode-line-update) (lambda ()))
+                 ;; Event within window (10 minutes)
+                 (event1-time (encode-time 0 10 14 24 10 2025))
+                 (event1 `((times . ((("<2025-10-24 Fri 14:10>" . ,event1-time))))
+                           (title . "Within Window")
+                           (marker . nil)))
+                 ;; Event outside window (60 minutes, window is 30)
+                 (event2-time (encode-time 0 0 15 24 10 2025))
+                 (event2 `((times . ((("<2025-10-24 Fri 15:00>" . ,event2-time))))
+                           (title . "Outside Window")
+                           (marker . nil)))
+                 (events (list event1 event2)))
+        (setq chime-modeline-lookahead 30)
+        (chime--update-modeline events)
+        ;; Should only have 1 event (within window)
+        (should (= 1 (length chime--upcoming-events))))
+    (test-chime-update-modeline-teardown)))
+
 (provide 'test-chime-update-modeline)
 ;;; test-chime-update-modeline.el ends here
