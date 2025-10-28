@@ -293,5 +293,68 @@
           (should (string-equal "Meeting (in 10m)" result))))
     (test-chime-notification-text-teardown)))
 
+;;; Time Format Cases
+
+(ert-deftest test-chime-notification-text-24-hour-time-format ()
+  "Test 24-hour time format (14:30)."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-display-time-format-string "%H:%M"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "14:30" result))
+          (should-not (string-match-p "PM" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-12-hour-no-space-before-ampm ()
+  "Test 12-hour format without space before AM/PM (02:30PM)."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-display-time-format-string "%I:%M%p"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "02:30PM" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-lowercase-ampm ()
+  "Test 12-hour format with lowercase am/pm (02:30 pm)."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Meeting")))
+             (chime-display-time-format-string "%I:%M %P"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "02:30 pm" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-24-hour-morning ()
+  "Test 24-hour format for morning time (09:15)."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 09:15>" . 5))
+             (event '((title . "Standup")))
+             (chime-display-time-format-string "%H:%M"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "09:15" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-24-hour-midnight ()
+  "Test 24-hour format for midnight (00:00)."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 00:00>" . 30))
+             (event '((title . "Midnight")))
+             (chime-display-time-format-string "%H:%M"))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "00:00" result))))
+    (test-chime-notification-text-teardown)))
+
 (provide 'test-chime-notification-text)
 ;;; test-chime-notification-text.el ends here

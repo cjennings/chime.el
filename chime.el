@@ -134,10 +134,28 @@ Leave this variable blank if you do not want to filter anything."
 
 (defcustom chime-display-time-format-string "%I:%M %p"
   "Format string for displaying event times.
-Passed to `format-time-string' when displaying notification times."
+Passed to `format-time-string' when displaying notification times.
+Uses standard time format codes:
+  %I - Hour (01-12, 12-hour format)
+  %H - Hour (00-23, 24-hour format)
+  %M - Minutes (00-59)
+  %p - AM/PM designation (uppercase)
+  %P - am/pm designation (lowercase)
+
+Common formats:
+  \"%I:%M %p\" -> \"02:30 PM\" (12-hour with AM/PM, default)
+  \"%H:%M\"    -> \"14:30\" (24-hour)
+  \"%I:%M%p\"  -> \"02:30PM\" (12-hour, no space before AM/PM)
+  \"%l:%M %p\" -> \" 2:30 PM\" (12-hour, space-padded hour)
+
+Note: Avoid using seconds (%S) as chime polls once per minute."
   :package-version '(chime . "0.5.0")
   :group 'chime
-  :type 'string)
+  :type 'string
+  :set (lambda (symbol value)
+         (when (and value (stringp value) (string-match-p "%S" value))
+           (warn "chime-display-time-format-string: Using seconds (%%S) is not recommended as chime polls once per minute"))
+         (set-default symbol value)))
 
 (defcustom chime-time-left-format-at-event "right now"
   "Format string for when event time has arrived (0 or negative seconds).
