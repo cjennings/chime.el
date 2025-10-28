@@ -86,6 +86,29 @@ negative."
                (user-error "Alert time cannot be negative, got: %d" v)))
            (set-default symbol value))))
 
+(defcustom chime-check-interval 60
+  "How often to check for upcoming events, in seconds.
+Chime will poll your agenda files at this interval to check for
+notifications. Lower values make notifications more responsive but
+increase system load. Higher values reduce polling overhead but may
+delay notifications slightly.
+
+Minimum recommended value: 10 seconds.
+Default: 60 seconds (1 minute).
+
+Note: Changes take effect after restarting chime-mode."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'integer
+  :set (lambda (symbol value)
+         (unless (integerp value)
+           (user-error "Check interval must be an integer, got: %S" value))
+         (when (< value 10)
+           (warn "chime-check-interval: Values below 10 seconds may cause excessive polling and system load"))
+         (when (<= value 0)
+           (user-error "Check interval must be positive, got: %d" value))
+         (set-default symbol value)))
+
 (defcustom chime-alert-times-property "CHIME_NOTIFY_BEFORE"
   "Property name for per-event notification times.
 Use this property in your agenda files to add additional
@@ -760,13 +783,13 @@ MARKER acts like event's identifier."
 
 (defun chime--start ()
   "Start the notification timer.  Cancel old one, if any.
-Timer is scheduled on the beginning of every minute, so for
-smoother experience this function also runs a check without timer."
+Timer interval is controlled by `chime-check-interval'.
+Runs an immediate check for smoother experience."
   (chime--stop)
   (chime-check)
 
-  (--> (format-time-string "%H:%M" (time-add (current-time) 60))
-       (run-at-time it 60 'chime-check)
+  (--> (time-add (current-time) chime-check-interval)
+       (run-at-time it chime-check-interval 'chime-check)
        (setf chime--timer it)))
 
 (defun chime--check-events (events)

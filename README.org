@@ -105,6 +105,33 @@ clone the package somewhere, then add
 
 ** Configuration
 
+*** Polling Interval
+
+Control how often chime checks for upcoming events:
+
+#+BEGIN_SRC elisp
+;; Default: check every 60 seconds (1 minute) - recommended for most users
+(setq chime-check-interval 60)
+
+;; More responsive: check every 30 seconds
+(setq chime-check-interval 30)
+
+;; Reduce polling overhead: check every 5 minutes
+(setq chime-check-interval 300)
+#+END_SRC
+
+Lower values make notifications more responsive but increase system load. Higher values reduce polling overhead but may delay notifications slightly.
+
+**Choosing a polling interval:**
+
+- *60 seconds (default)*: Ideal for most users. Matches org's minute-based timestamps and provides timely notifications with minimal overhead.
+- *30 seconds*: Good for time-sensitive events where you want quicker notification delivery. Reasonable resource usage.
+- *15-10 seconds*: Maximum responsiveness, but consider the trade-off—you're polling 4-6 times more frequently for marginal precision gain on minute-based events.
+- *Below 10 seconds*: Not recommended. Org events are scheduled to the minute, so faster polling provides little benefit while significantly increasing CPU, disk I/O, and battery usage.
+- *120-300 seconds (2-5 minutes)*: Good for reducing system load if you don't need immediate notifications.
+
+**Note:** Changes take effect after restarting chime-mode (=M-x chime-mode= twice, or restart Emacs).
+
 *** Alert Times
 
 Set when to receive notifications (in minutes before event):
@@ -384,6 +411,9 @@ For Monday-Friday events, you can either:
     :after (alert org-agenda)
     :commands (chime-mode chime-check)
     :config
+    ;; Polling interval: check every 60 seconds (default)
+    (setq chime-check-interval 60)
+
     ;; Notification times: 5 minutes before and at event time
     (setq chime-alert-time '(5 0))
 
