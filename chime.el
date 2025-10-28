@@ -311,6 +311,34 @@ Examples:
   :group 'chime
   :type 'string)
 
+(defcustom chime-max-title-length nil
+  "Maximum length for event titles in notifications.
+When non-nil, truncate titles longer than this value with \"...\".
+When nil, show full title without truncation.
+
+This affects ONLY the event title (%t in `chime-notification-text-format'),
+NOT the icon, time, or countdown. The icon is part of
+`chime-modeline-format' and is added separately.
+
+Examples (assuming format \"%t (%u)\" and icon \" ⏰ \"):
+  nil  -> \" ⏰ Very Long Meeting Title That Goes On ( in 10m)\"
+  25   -> \" ⏰ Very Long Meeting Titl... ( in 10m)\"
+  15   -> \" ⏰ Very Long Me... ( in 10m)\"
+  10   -> \" ⏰ Very Lo... ( in 10m)\"
+
+The limit includes the \"...\" suffix (3 chars), so a limit of 15
+means up to 12 chars of title plus \"...\".
+
+Minimum recommended value: 10 characters."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(choice (const :tag "No truncation (show full title)" nil)
+                 (integer :tag "Maximum title length"))
+  :set (lambda (symbol value)
+         (when (and value (integerp value) (< value 5))
+           (warn "chime-max-title-length: Values below 5 may produce illegible titles"))
+         (set-default symbol value)))
+
 (defcustom chime-play-sound t
   "Whether to play a sound when notifications are displayed.
 When non-nil, plays the sound file specified in `chime-sound-file'."
@@ -422,13 +450,28 @@ Format is controlled by `chime-time-left-format-at-event',
    chime-display-time-format-string
    (encode-time (org-parse-time-string time-string))))
 
+(defun chime--truncate-title (title)
+  "Truncate TITLE to `chime-max-title-length' if set.
+Returns the truncated title with \"...\" appended if truncated,
+or the original title if no truncation is needed.
+Returns empty string if TITLE is nil."
+  (let ((title-str (or title "")))
+    (if (and chime-max-title-length
+             (integerp chime-max-title-length)
+             (> chime-max-title-length 0)
+             (> (length title-str) chime-max-title-length))
+        (concat (substring title-str 0 (max 0 (- chime-max-title-length 3))) "...")
+      title-str)))
+
 (defun chime--notification-text (str-interval event)
   "For given STR-INTERVAL list and EVENT get notification wording.
-Format is controlled by `chime-notification-text-format'."
-  (format-spec chime-notification-text-format
-               `((?t . ,(or (cdr (assoc 'title event)) ""))
-                 (?T . ,(chime--get-hh-mm-from-org-time-string (car str-interval)))
-                 (?u . ,(chime--time-left (* 60 (cdr str-interval)))))))
+Format is controlled by `chime-notification-text-format'.
+Title is truncated per `chime-max-title-length' if set."
+  (let ((title (cdr (assoc 'title event))))
+    (format-spec chime-notification-text-format
+                 `((?t . ,(chime--truncate-title title))
+                   (?T . ,(chime--get-hh-mm-from-org-time-string (car str-interval)))
+                   (?u . ,(chime--time-left (* 60 (cdr str-interval))))))))
 
 (defun chime-get-minutes-into-day (time)
   "Get minutes elapsed since midnight for TIME string."

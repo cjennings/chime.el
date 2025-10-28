@@ -54,7 +54,9 @@
   ;; Reset time-left formats to defaults
   (setq chime-time-left-format-at-event "right now")
   (setq chime-time-left-format-short "in %M")
-  (setq chime-time-left-format-long "in %H %M"))
+  (setq chime-time-left-format-long "in %H %M")
+  ;; Reset title truncation to default (no truncation)
+  (setq chime-max-title-length nil))
 
 (defun test-chime-notification-text-teardown ()
   "Teardown function run after each test."
@@ -354,6 +356,95 @@
         (let ((result (chime--notification-text str-interval event)))
           (should (stringp result))
           (should (string-match-p "00:00" result))))
+    (test-chime-notification-text-teardown)))
+
+;;; Title Truncation Cases
+
+(ert-deftest test-chime-notification-text-truncate-nil-no-truncation ()
+  "Test that nil chime-max-title-length shows full title."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Very Long Meeting Title That Goes On And On")))
+             (chime-max-title-length nil))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Very Long Meeting Title That Goes On And On" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-25-chars ()
+  "Test truncation to 25 characters."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Very Long Meeting Title That Goes On")))
+             (chime-max-title-length 25))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Very Long Meeting Titl\\.\\.\\." result))
+          (should-not (string-match-p "That Goes On" result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-15-chars ()
+  "Test truncation to 15 characters."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Very Long Meeting Title")))
+             (chime-max-title-length 15))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Very Long Me\\.\\.\\." result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-10-chars ()
+  "Test truncation to 10 characters."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Very Long Title")))
+             (chime-max-title-length 10))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Very Lo\\.\\.\\." result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-short-title-unchanged ()
+  "Test that short titles are not truncated."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Short")))
+             (chime-max-title-length 25))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Short" result))
+          (should-not (string-match-p "\\.\\.\\." result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-exact-length-unchanged ()
+  "Test that title exactly at max length is not truncated."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '((title . "Exactly Twenty-Five C")))  ; 21 chars
+             (chime-max-title-length 21))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "Exactly Twenty-Five C" result))
+          (should-not (string-match-p "\\.\\.\\." result))))
+    (test-chime-notification-text-teardown)))
+
+(ert-deftest test-chime-notification-text-truncate-nil-title-handled ()
+  "Test that nil title is handled gracefully with truncation enabled."
+  (test-chime-notification-text-setup)
+  (unwind-protect
+      (let* ((str-interval '("<2025-10-24 Fri 14:30>" . 10))
+             (event '())  ; No title
+             (chime-max-title-length 25))
+        (let ((result (chime--notification-text str-interval event)))
+          (should (stringp result))
+          (should (string-match-p "02:30 PM" result))))
     (test-chime-notification-text-teardown)))
 
 (provide 'test-chime-notification-text)

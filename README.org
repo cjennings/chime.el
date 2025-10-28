@@ -277,6 +277,30 @@ Available format codes (from =format-seconds=):
 - =%h= / =%H= - Hours (number only / with unit name)
 - =%m= / =%M= - Minutes (number only / with unit name)
 
+***** Title Truncation
+
+Limit the length of long event titles to conserve modeline space:
+
+#+BEGIN_SRC elisp
+;; No truncation - show full title (default)
+(setq chime-max-title-length nil)
+;; → " ⏰ Very Long Meeting Title That Goes On And On ( in 10m)"
+
+;; Truncate to 25 characters
+(setq chime-max-title-length 25)
+;; → " ⏰ Very Long Meeting Titl... ( in 10m)"
+
+;; Truncate to 15 characters
+(setq chime-max-title-length 15)
+;; → " ⏰ Very Long Me... ( in 10m)"
+#+END_SRC
+
+**Important:** This setting affects *only the event title* (%t), not the icon, time, or countdown. The icon comes from =chime-modeline-format= and is added separately.
+
+The truncation includes the "..." in the character count, so a 15-character limit means up to 12 characters of title plus "...".
+
+Minimum recommended value: 10 characters.
+
 ***** Complete Compact Example
 
 For maximum modeline space savings:
@@ -288,7 +312,8 @@ For maximum modeline space savings:
 (setq chime-notification-text-format "%t (%u)")        ; No time shown
 (setq chime-time-left-format-short "%mm")              ; Compact short
 (setq chime-time-left-format-long "%hh%mm")            ; Compact long
-;; Result: "⏰Meeting (10m)" or "⏰Meeting (1h30m)"
+(setq chime-max-title-length 20)                       ; Truncate long titles
+;; Result: "⏰Meeting (10m)" or "⏰Very Long Meeti... (1h30m)"
 #+END_SRC
 
 ***** Disabling Modeline Display
