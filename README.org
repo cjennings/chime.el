@@ -14,8 +14,13 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 ** Features
 
 - *Visual notifications* with customizable alert times
-- *Audible chime sound* when notifications are displayed. 
-- *Modeline display* of next upcoming event with customizable lookahead
+- *Audible chime sound* when notifications are displayed
+- *Modeline display* of next upcoming event with extensive customization:
+  - Enable/disable modeline modifications
+  - Customize notification text format (show/hide time, countdown, or title)
+  - Choose 12-hour or 24-hour time display
+  - Customize time-until format (verbose or compact)
+  - Configurable lookahead window
 - Multiple notification times per event (e.g., 5 minutes before and at event time)
 - Works with SCHEDULED and DEADLINE and just plain ol' regular timestamps
 - Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
@@ -50,7 +55,8 @@ This package is NOT YET available on MELPA.
   ;; Chime sound
   (setq chime-play-sound t)
 
-  ;; Modeline display
+  ;; Modeline display (see "Modeline Display" section for more options)
+  (setq chime-enable-modeline t)
   (setq chime-modeline-lookahead 30)
   (setq chime-modeline-format " ⏰ %s")
 
@@ -133,19 +139,140 @@ The package includes a pleasant chime sound in GPL-compatible WAV format. You ca
 Show the next upcoming event in your modeline:
 
 #+BEGIN_SRC elisp
-;; Show events up to 30 minutes ahead (default)
+;; Enable/disable modeline display (default: t)
+(setq chime-enable-modeline t)
+
+;; Show events up to 30 minutes ahead (default: 30)
 (setq chime-modeline-lookahead 30)
 
-;; Customize the display format (default: " ⏰ %s")
+;; Customize the modeline prefix format (default: " ⏰ %s")
 (setq chime-modeline-format " [Next: %s]")
-
-;; Disable modeline display
-(setq chime-modeline-lookahead 0)
 #+END_SRC
 
 The modeline will display the soonest event within the lookahead window, formatted as:
 - Default: =⏰ Meeting with Team at 02:30 PM (in 15 minutes)=
 - Updates automatically every minute
+
+**** Customizing Modeline Content
+
+Control what information appears in the modeline with fine-grained formatting:
+
+***** Notification Text Format
+
+Customize which components are shown:
+
+#+BEGIN_SRC elisp
+;; Default: title, time, and countdown
+(setq chime-notification-text-format "%t at %T (%u)")
+;; → "Meeting with Team at 02:30 PM (in 15 minutes)"
+
+;; Title and time only (no countdown)
+(setq chime-notification-text-format "%t at %T")
+;; → "Meeting with Team at 02:30 PM"
+
+;; Title and countdown only (no time)
+(setq chime-notification-text-format "%t (%u)")
+;; → "Meeting with Team (in 15 minutes)"
+
+;; Title only (minimal)
+(setq chime-notification-text-format "%t")
+;; → "Meeting with Team"
+
+;; Custom separator
+(setq chime-notification-text-format "%t - %T")
+;; → "Meeting with Team - 02:30 PM"
+
+;; Time first
+(setq chime-notification-text-format "%T: %t")
+;; → "02:30 PM: Meeting with Team"
+#+END_SRC
+
+Available placeholders:
+- =%t= - Event title
+- =%T= - Event time (formatted per =chime-display-time-format-string=)
+- =%u= - Time until event (formatted per =chime-time-left-format-*=)
+
+***** Event Time Format
+
+Choose between 12-hour and 24-hour time display:
+
+#+BEGIN_SRC elisp
+;; 12-hour with AM/PM (default)
+(setq chime-display-time-format-string "%I:%M %p")
+;; → "02:30 PM"
+
+;; 24-hour format
+(setq chime-display-time-format-string "%H:%M")
+;; → "14:30"
+
+;; 12-hour without space before AM/PM
+(setq chime-display-time-format-string "%I:%M%p")
+;; → "02:30PM"
+
+;; 12-hour with lowercase am/pm
+(setq chime-display-time-format-string "%I:%M %P")
+;; → "02:30 pm"
+#+END_SRC
+
+Available format codes:
+- =%I= - Hour (01-12, 12-hour format)
+- =%H= - Hour (00-23, 24-hour format)
+- =%M= - Minutes (00-59)
+- =%p= - AM/PM (uppercase)
+- =%P= - am/pm (lowercase)
+
+***** Time-Until Format
+
+Customize how the countdown is displayed:
+
+#+BEGIN_SRC elisp
+;; Default: verbose format
+(setq chime-time-left-format-short "in %M")      ; Under 1 hour
+(setq chime-time-left-format-long "in %H %M")    ; 1 hour or more
+;; → "in 10 minutes" or "in 1 hour 30 minutes"
+
+;; Compact format
+(setq chime-time-left-format-short "in %mm")
+(setq chime-time-left-format-long "in %hh %mm")
+;; → "in 10m" or "in 1h 30m"
+
+;; Very compact (no prefix)
+(setq chime-time-left-format-short "%mm")
+(setq chime-time-left-format-long "%hh%mm")
+;; → "10m" or "1h30m"
+
+;; Custom "at event time" message
+(setq chime-time-left-format-at-event "NOW!")
+;; → "NOW!" instead of "right now"
+#+END_SRC
+
+Available format codes (from =format-seconds=):
+- =%h= / =%H= - Hours (number only / with unit name)
+- =%m= / =%M= - Minutes (number only / with unit name)
+
+***** Complete Compact Example
+
+For maximum modeline space savings:
+
+#+BEGIN_SRC elisp
+(setq chime-enable-modeline t)
+(setq chime-modeline-lookahead 30)
+(setq chime-modeline-format " ⏰%s")                    ; Minimal prefix
+(setq chime-notification-text-format "%t (%u)")        ; No time shown
+(setq chime-time-left-format-short "%mm")              ; Compact short
+(setq chime-time-left-format-long "%hh%mm")            ; Compact long
+;; Result: "⏰Meeting (10m)" or "⏰Meeting (1h30m)"
+#+END_SRC
+
+***** Disabling Modeline Display
+
+#+BEGIN_SRC elisp
+;; Completely disable modeline modifications
+(setq chime-enable-modeline nil)
+
+;; Alternative: set lookahead to 0 (legacy method)
+(setq chime-modeline-lookahead 0)
+#+END_SRC
 
 *** Notification Settings
 
@@ -264,9 +391,15 @@ For Monday-Friday events, you can either:
     (setq chime-play-sound t)
     ;; Uses bundled chime.wav by default
 
-    ;; Modeline display
-    (setq chime-modeline-lookahead 120)   ;; notify for events 2 hrs ahead
-    (setq chime-modeline-format " ⏰ %s") 
+    ;; Modeline display - compact format
+    (setq chime-enable-modeline t)
+    (setq chime-modeline-lookahead 120)                 ; Show events 2 hrs ahead
+    (setq chime-modeline-format " ⏰%s")                ; Minimal prefix
+    (setq chime-notification-text-format "%t (%u)")    ; Title + countdown only
+    (setq chime-display-time-format-string "%H:%M")    ; 24-hour time
+    (setq chime-time-left-format-short "in %mm")       ; Compact: "in 5m"
+    (setq chime-time-left-format-long "%hh%mm")        ; Compact: "1h30m"
+    (setq chime-time-left-format-at-event "NOW!")      ; Custom at-event message
 
     ;; Notification settings
     (setq chime-notification-title "Reminder")
