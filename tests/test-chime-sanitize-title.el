@@ -47,6 +47,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -61,7 +62,9 @@
 ;;; Normal Cases - Already Balanced
 
 (ert-deftest test-chime-sanitize-title-balanced-parens-unchanged ()
-  "Test that balanced parentheses are unchanged."
+  "Test that balanced parentheses are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Meeting (Team Sync)")
@@ -70,7 +73,9 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-sanitize-title-balanced-brackets-unchanged ()
-  "Test that balanced brackets are unchanged."
+  "Test that balanced brackets are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Review [PR #123]")
@@ -79,7 +84,9 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-sanitize-title-balanced-braces-unchanged ()
-  "Test that balanced braces are unchanged."
+  "Test that balanced braces are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Code Review {urgent}")
@@ -88,7 +95,9 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-sanitize-title-mixed-balanced-unchanged ()
-  "Test that mixed balanced delimiters are unchanged."
+  "Test that mixed balanced delimiters are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Meeting [Team] (Sync) {Urgent}")
@@ -97,7 +106,9 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-sanitize-title-nested-balanced-unchanged ()
-  "Test that nested balanced delimiters are unchanged."
+  "Test that nested balanced delimiters are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Review (PR [#123] {urgent})")
@@ -106,7 +117,9 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-sanitize-title-no-delimiters-unchanged ()
-  "Test that titles without delimiters are unchanged."
+  "Test that titles without delimiters are unchanged.
+
+REFACTORED: No timestamps used"
   (test-chime-sanitize-title-setup)
   (unwind-protect
       (let* ((title "Simple Meeting Title")
@@ -338,11 +351,15 @@
 ;;; Integration with chime--extract-title
 
 (ert-deftest test-chime-extract-title-sanitizes-output ()
-  "Test that chime--extract-title applies sanitization."
+  "Test that chime--extract-title applies sanitization.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-sanitize-title-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting (Team Sync\n<2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting (Team Sync\n%s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)  ; Enable org-mode
@@ -358,11 +375,15 @@
     (test-chime-sanitize-title-teardown)))
 
 (ert-deftest test-chime-extract-title-handles-nil ()
-  "Test that chime--extract-title handles nil gracefully."
+  "Test that chime--extract-title handles nil gracefully.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-sanitize-title-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO\n<2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO\n%s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)  ; Enable org-mode
