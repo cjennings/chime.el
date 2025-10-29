@@ -29,7 +29,7 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 - Per-event notification customization via properties
 - Async background checking (runs every minute)
 - Configurable notification filtering by keywords and tags
-- [[tests/testing-strategy.org][Well-tested]], including with org-gcal
+- [[https://github.com/cjennings/chime.el/tree/main/tests][Well-tested]], including with org-gcal
 
 ** Installation
 
