@@ -41,6 +41,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -55,225 +56,269 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-timestamp-within-interval-p-exactly-at-interval-returns-t ()
-  "Test that timestamp exactly at interval returns t."
+  "Test that timestamp exactly at interval returns t.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:10 (10 minutes from 14:00)
-                 (timestamp (encode-time 0 10 14 24 10 2025))
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:10 (10 minutes from 14:00)
+             (timestamp (test-time-today-at 14 10))
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-zero-interval-returns-t ()
-  "Test that zero interval (notify now) returns t for current time."
+  "Test that zero interval (notify now) returns t for current time.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 30 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at exactly current time (14:30)
-                 (timestamp (encode-time 0 30 14 24 10 2025))
-                 (interval 0)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 30))
+             ;; Timestamp at exactly current time (14:30)
+             (timestamp (test-time-today-at 14 30))
+             (interval 0))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-five-minutes-returns-t ()
-  "Test that 5-minute interval works correctly."
+  "Test that 5-minute interval works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 25 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:30 (5 minutes from 14:25)
-                 (timestamp (encode-time 0 30 14 24 10 2025))
-                 (interval 5)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 25))
+             ;; Timestamp at 14:30 (5 minutes from 14:25)
+             (timestamp (test-time-today-at 14 30))
+             (interval 5))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-sixty-minutes-returns-t ()
-  "Test that 60-minute (1 hour) interval works correctly."
+  "Test that 60-minute (1 hour) interval works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 15:00 (60 minutes from 14:00)
-                 (timestamp (encode-time 0 0 15 24 10 2025))
-                 (interval 60)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 15:00 (60 minutes from 14:00)
+             (timestamp (test-time-today-at 15 0))
+             (interval 60))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-large-interval-returns-t ()
-  "Test that large interval (1 day = 1440 minutes) works correctly."
+  "Test that large interval (1 day = 1440 minutes) works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:00 next day (1440 minutes from now)
-                 (timestamp (encode-time 0 0 14 25 10 2025))
-                 (interval 1440)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:00 next day (1440 minutes from now)
+             ;; Add 86400 seconds (1440 minutes = 1 day) to now
+             ;; Convert to list format for compatibility
+             (timestamp (apply #'encode-time (decode-time (time-add now (seconds-to-time 86400)))))
+             (interval 1440))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-thirty-minutes-returns-t ()
-  "Test that 30-minute interval works correctly."
+  "Test that 30-minute interval works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 15 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:45 (30 minutes from 14:15)
-                 (timestamp (encode-time 0 45 14 24 10 2025))
-                 (interval 30)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 15))
+             ;; Timestamp at 14:45 (30 minutes from 14:15)
+             (timestamp (test-time-today-at 14 45))
+             (interval 30))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 ;;; Boundary Cases
 
 (ert-deftest test-chime-timestamp-within-interval-p-one-minute-before-returns-nil ()
-  "Test that timestamp 1 minute before interval returns nil."
+  "Test that timestamp 1 minute before interval returns nil.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:09 (9 minutes from 14:00, not 10)
-                 (timestamp (encode-time 0 9 14 24 10 2025))
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should-not result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:09 (9 minutes from 14:00, not 10)
+             (timestamp (test-time-today-at 14 9))
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should-not result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-one-minute-after-returns-nil ()
-  "Test that timestamp 1 minute after interval returns nil."
+  "Test that timestamp 1 minute after interval returns nil.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:11 (11 minutes from 14:00, not 10)
-                 (timestamp (encode-time 0 11 14 24 10 2025))
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should-not result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:11 (11 minutes from 14:00, not 10)
+             (timestamp (test-time-today-at 14 11))
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should-not result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-crossing-midnight-returns-t ()
-  "Test that interval crossing midnight works correctly."
+  "Test that interval crossing midnight works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 50 23 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 00:00 next day (10 minutes from 23:50)
-                 (timestamp (encode-time 0 0 0 25 10 2025))
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 23 50))
+             ;; Timestamp at 00:00 next day (10 minutes from 23:50)
+             ;; Add 600 seconds (10 minutes) to 23:50 to get 00:00 next day
+             ;; Convert to list format for compatibility
+             (timestamp (apply #'encode-time (decode-time (time-add now (seconds-to-time 600)))))
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-crossing-day-boundary-returns-t ()
-  "Test that interval crossing to next day works correctly."
+  "Test that interval crossing to next day works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 30 23 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 00:30 next day (60 minutes from 23:30)
-                 (timestamp (encode-time 0 30 0 25 10 2025))
-                 (interval 60)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 23 30))
+             ;; Timestamp at 00:30 next day (60 minutes from 23:30)
+             ;; Add 3600 seconds (60 minutes) to 23:30 to get 00:30 next day
+             ;; Convert to list format for compatibility
+             (timestamp (apply #'encode-time (decode-time (time-add now (seconds-to-time 3600)))))
+             (interval 60))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-week-interval-returns-t ()
-  "Test that very large interval (1 week = 10080 minutes) works."
+  "Test that very large interval (1 week = 10080 minutes) works.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:00 one week later
-                 (timestamp (encode-time 0 0 14 31 10 2025))
-                 (interval 10080)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:00 one week later (10080 minutes = 7 days from now)
+             ;; Add 604800 seconds (10080 minutes = 7 days) to now
+             ;; Convert to list format for compatibility
+             (timestamp (apply #'encode-time (decode-time (time-add now (seconds-to-time 604800)))))
+             (interval 10080))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-at-midnight-returns-t ()
-  "Test that timestamp at exact midnight works correctly."
+  "Test that timestamp at exact midnight works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 50 23 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at midnight (10 minutes from 23:50)
-                 (timestamp (encode-time 0 0 0 25 10 2025))
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 23 50))
+             ;; Timestamp at midnight (10 minutes from 23:50)
+             ;; Add 600 seconds (10 minutes) to 23:50 to get 00:00 next day
+             ;; Convert to list format for compatibility
+             (timestamp (apply #'encode-time (decode-time (time-add now (seconds-to-time 600)))))
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 ;;; Error Cases
 
 (ert-deftest test-chime-timestamp-within-interval-p-nil-timestamp-returns-nil ()
-  "Test that nil timestamp returns nil."
+  "Test that nil timestamp returns nil.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (timestamp nil)
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should-not result))
+      (let* ((now (test-time-today-at 14 0))
+             (timestamp nil)
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should-not result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-nil-interval-returns-nil ()
-  "Test that nil interval returns nil."
+  "Test that nil interval returns nil.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (timestamp (encode-time 0 10 14 24 10 2025))
-                 (interval nil)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should-not result))
+      (let* ((now (test-time-today-at 14 0))
+             (timestamp (test-time-today-at 14 10))
+             (interval nil))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should-not result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-negative-interval-returns-nil ()
-  "Test that negative interval returns nil (past timestamps)."
+  "Test that negative interval returns nil (past timestamps).
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp 10 minutes in the past (13:50)
-                 (timestamp (encode-time 0 50 13 24 10 2025))
-                 (interval -10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp 10 minutes in the past (13:50)
+             (timestamp (test-time-today-at 13 50))
+             (interval -10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-invalid-timestamp-returns-nil ()
-  "Test that invalid timestamp format returns nil."
+  "Test that invalid timestamp format returns nil.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (timestamp "not-a-timestamp")
-                 (interval 10)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should-not result))
+      (let* ((now (test-time-today-at 14 0))
+             (timestamp "not-a-timestamp")
+             (interval 10))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should-not result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (ert-deftest test-chime-timestamp-within-interval-p-float-interval-works ()
-  "Test that float interval gets converted properly."
+  "Test that float interval gets converted properly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-timestamp-within-interval-p-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Timestamp at 14:10 (10 minutes from 14:00)
-                 (timestamp (encode-time 0 10 14 24 10 2025))
-                 (interval 10.5)
-                 (result (chime--timestamp-within-interval-p timestamp interval)))
-        (should result))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Timestamp at 14:10 (10 minutes from 14:00)
+             (timestamp (test-time-today-at 14 10))
+             (interval 10.5))
+        (with-test-time now
+          (let ((result (chime--timestamp-within-interval-p timestamp interval)))
+            (should result))))
     (test-chime-timestamp-within-interval-p-teardown)))
 
 (provide 'test-chime-timestamp-within-interval-p)
