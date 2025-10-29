@@ -1383,7 +1383,9 @@ if needed."
       (force-mode-line-update))))
 
 ;; Automatically enable event loading monitor when debug mode is on
-(when chime-debug
+;; Only enable in the main Emacs process, not in async subprocesses
+(when (and chime-debug
+           (not (boundp 'async-in-child-emacs)))
   (chime-debug-monitor-event-loading))
 
 (provide 'chime)
