@@ -1042,6 +1042,15 @@ Combines keyword, tag, and custom predicate blacklists."
     (package-initialize)
     (require 'chime)
 
+    ;; Load optional dependencies for org-mode diary sexps
+    ;; Many users have sexp entries like %%(org-contacts-anniversaries) in their
+    ;; org files, which generate dynamic agenda entries. These sexps are evaluated
+    ;; when org-agenda-list runs, so the required packages must be loaded in this
+    ;; async subprocess. We use (require ... nil t) to avoid errors if packages
+    ;; aren't installed - the sexp will simply fail gracefully with a "Bad sexp"
+    ;; warning that won't break event retrieval.
+    (require 'org-contacts nil t)
+
     ;; Calculate agenda span based on max lookahead (convert to days, round up)
     ;; Use the larger of modeline-lookahead (minutes) and tooltip-lookahead (hours) to ensure
     ;; we fetch enough events for both. Add 1 day buffer to account for partial days.
