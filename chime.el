@@ -258,18 +258,55 @@ Options: \\='high \\='medium \\='low"
   :group 'chime
   :type 'plist)
 
-(defcustom chime-day-wide-alert-times nil
+(defcustom chime-day-wide-alert-times '("08:00")
   "List of time strings for day-wide event alerts.
-Each string specifies a time of day when day-wide events should trigger."
-  :package-version '(chime . "0.5.0")
+Each string specifies a time of day when day-wide events should trigger.
+Defaults to 08:00 (morning reminder for all-day events happening today).
+Set to nil to disable all-day event notifications entirely.
+
+Example: \\='(\"08:00\" \"17:00\") for morning and evening reminders."
+  :package-version '(chime . "0.6.0")
   :group 'chime
-  :type 'string)
+  :type '(repeat string))
 
 (defcustom chime-show-any-overdue-with-day-wide-alerts t
   "Show any overdue TODO items along with day wide alerts whenever they are shown."
   :package-version '(chime . "0.5.0")
   :group 'chime
-  :type 'string)
+  :type 'boolean)
+
+(defcustom chime-day-wide-advance-notice nil
+  "Number of days before all-day events to show advance notifications.
+When nil, only notify on the day of the event.
+When 1, also notify the day before at `chime-day-wide-alert-times'.
+When 2, notify two days before, etc.
+
+Useful for events requiring preparation, such as birthdays (buying gifts)
+or multi-day conferences (packing, travel arrangements).
+
+Note: This only affects notifications, not tooltip/modeline display.
+
+Example: With value 1 and alert times \\='(\"08:00\"), you'll get:
+  - \"Blake's birthday is tomorrow\" at 08:00 the day before
+  - \"Blake's birthday is today\" at 08:00 on the day"
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(choice (const :tag "Same day only" nil)
+                 (integer :tag "Days in advance")))
+
+(defcustom chime-tooltip-show-all-day-events t
+  "Whether to show all-day events in the tooltip.
+When nil, all-day events (birthdays, multi-day conferences, etc.) are
+hidden from the tooltip but can still trigger notifications.
+When t, all-day events appear in the tooltip for planning purposes.
+
+All-day events are never shown in the modeline (only in tooltip).
+
+This is useful for seeing upcoming birthdays, holidays, and multi-day
+events without cluttering the modeline with non-time-sensitive items."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'boolean)
 
 (defcustom chime-enable-modeline t
   "Whether to display upcoming events in the modeline.
@@ -278,14 +315,14 @@ When nil, chime will not modify the modeline at all."
   :group 'chime
   :type 'boolean)
 
-(defcustom chime-modeline-lookahead 30
+(defcustom chime-modeline-lookahead-minutes 60
   "Minutes ahead to look for next event to display in modeline.
 Should be larger than notification alert times for advance awareness.
 Set to 0 to disable modeline display.
 This setting only takes effect when `chime-enable-modeline' is non-nil."
-  :package-version '(chime . "0.5.1")
+  :package-version '(chime . "0.6.0")
   :group 'chime
-  :type 'integer)
+  :type '(integer :tag "Minutes"))
 
 (defcustom chime-modeline-format " ⏰ %s"
   "Format string for modeline display.
@@ -294,9 +331,21 @@ This setting only takes effect when `chime-enable-modeline' is non-nil."
   :group 'chime
   :type 'string)
 
+(defcustom chime-tooltip-lookahead-hours 8760
+  "Hours ahead to look for events in tooltip (separate from modeline lookahead).
+Default is 8760 hours (1 year), effectively showing all future events.
+The actual number of events shown is limited by `chime-modeline-tooltip-max-events'.
+
+Set to a smaller value if you want to limit tooltip by time as well as count.
+Example: Set to 24 to show only today's and tomorrow's events in tooltip,
+or keep at default to show next N events regardless of how far in the future."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(integer :tag "Hours"))
+
 (defcustom chime-modeline-tooltip-max-events 5
   "Maximum number of events to show in modeline tooltip.
-Set to nil to show all events within lookahead window."
+Set to nil to show all events within tooltip lookahead window."
   :package-version '(chime . "0.6.0")
   :group 'chime
   :type '(choice (integer :tag "Maximum events")
@@ -524,28 +573,156 @@ Returns a list of (HOURS MINUTES)."
 
 (defun chime-display-as-day-wide-event (event)
   "Check if EVENT should be displayed as a day-wide event.
-`chime-event-has-any-passed-time' is a requirement regardless of
-whether `chime-show-any-overdue-with-day-wide-alerts' is set,
-because the events list can include events scheduled tomorrow.
-We only want to alert for things scheduled today."
-  (and (chime-event-has-any-passed-time event)
-      (or chime-show-any-overdue-with-day-wide-alerts
-           (chime-event-has-any-day-wide-timestamp event))))
+Considers both events happening today and advance notices for future events.
+
+When `chime-show-any-overdue-with-day-wide-alerts' is t (default):
+  - Shows overdue TODO items (timed events that passed)
+  - Shows all-day events from today or earlier
+
+When nil:
+  - Shows only today's events (both timed and all-day)
+  - Hides overdue items from past days"
+  (or
+   ;; Events happening today or in the past
+   (and (chime-event-has-any-passed-time event)
+        (or chime-show-any-overdue-with-day-wide-alerts
+            ;; When overdue alerts disabled, only show today's events
+            (chime-event-is-today event)))
+   ;; Advance notice for upcoming all-day events
+   (and chime-day-wide-advance-notice
+        (chime-event-has-any-day-wide-timestamp event)
+        (chime-event-within-advance-notice-window event))))
 
 (defun chime-event-has-any-day-wide-timestamp (event)
   "Check if EVENT has any day-wide (no time component) timestamps."
   (--any (not (chime--has-timestamp (car it)))
-         (car (cdr (assoc 'times event)))))
+         (cdr (assoc 'times event))))
+
+(defun chime-event-within-advance-notice-window (event)
+  "Check if EVENT has any day-wide timestamps within advance notice window.
+Returns t if any all-day timestamp is between tomorrow and N days from now,
+where N is `chime-day-wide-advance-notice'."
+  (when chime-day-wide-advance-notice
+    (let* ((now (current-time))
+           ;; Calculate time range: start of tomorrow to end of N days from now
+           (window-end (time-add now (seconds-to-time
+                                      (* 86400 (1+ chime-day-wide-advance-notice)))))
+           (all-times (cdr (assoc 'times event))))
+      (--any
+       (when-let* ((timestamp-str (car it))
+                   ;; Only check all-day events (those without time component)
+                   (is-all-day (not (chime--has-timestamp timestamp-str)))
+                   ;; Parse the date portion even without time
+                   (parsed (org-parse-time-string timestamp-str))
+                   ;; Use nth accessors for Emacs 26 compatibility
+                   (year (nth 5 parsed))
+                   (month (nth 4 parsed))
+                   (day (nth 3 parsed)))
+         ;; Convert to time at start of day (00:00:00)
+         (let ((event-time (encode-time 0 0 0 day month year)))
+           ;; Check if event is within the advance notice window
+           (and (time-less-p now event-time)           ;; Event is in future
+                (time-less-p event-time window-end)))) ;; Event is within window
+       all-times))))
 
 (defun chime-event-has-any-passed-time (event)
-  "Check if EVENT has any timestamps in the past."
-  (--any (time-less-p (cdr it) (current-time))
-         (car (cdr (assoc 'times event )))))
+  "Check if EVENT has any timestamps in the past or today.
+For all-day events, checks if the date is today or earlier."
+  (--any
+   (let ((timestamp-str (car it))
+         (parsed-time (cdr it)))
+     (if parsed-time
+         ;; Timed event: check if time has passed
+         (time-less-p parsed-time (current-time))
+       ;; All-day event: check if date is today or earlier
+       (when-let* ((parsed (org-parse-time-string timestamp-str))
+                   (year (nth 5 parsed))
+                   (month (nth 4 parsed))
+                   (day (nth 3 parsed)))
+         (let* ((event-date (encode-time 0 0 0 day month year))
+                (today-start (let ((now (decode-time (current-time))))
+                               (encode-time 0 0 0
+                                           (decoded-time-day now)
+                                           (decoded-time-month now)
+                                           (decoded-time-year now)))))
+           (not (time-less-p today-start event-date))))))
+   (cdr (assoc 'times event))))
+
+(defun chime-event-is-today (event)
+  "Check if EVENT has any timestamps that are specifically today (not past days).
+For all-day events, checks if the date is exactly today.
+For timed events, checks if the time is today (past or future)."
+  (--any
+   (let ((timestamp-str (car it))
+         (parsed-time (cdr it)))
+     (if parsed-time
+         ;; Timed event: check if it's today (could be future time today)
+         (let* ((decoded (decode-time parsed-time))
+                (event-day (decoded-time-day decoded))
+                (event-month (decoded-time-month decoded))
+                (event-year (decoded-time-year decoded))
+                (today (decode-time))
+                (today-day (decoded-time-day today))
+                (today-month (decoded-time-month today))
+                (today-year (decoded-time-year today)))
+           (and (= event-day today-day)
+                (= event-month today-month)
+                (= event-year today-year)))
+       ;; All-day event: check if date is exactly today
+       (when-let* ((parsed (org-parse-time-string timestamp-str))
+                   (year (nth 5 parsed))
+                   (month (nth 4 parsed))
+                   (day (nth 3 parsed)))
+         (let* ((event-date (encode-time 0 0 0 day month year))
+                (today-start (let ((now (decode-time (current-time))))
+                               (encode-time 0 0 0
+                                           (decoded-time-day now)
+                                           (decoded-time-month now)
+                                           (decoded-time-year now)))))
+           (time-equal-p event-date today-start)))))
+   (cdr (assoc 'times event))))
 
 (defun chime--day-wide-notification-text (event)
-  "For given STR-INTERVAL list and EVENT get notification wording."
-  (format "%s is due or scheduled today"
-          (cdr (assoc 'title event))))
+  "Generate notification text for day-wide EVENT.
+Handles both same-day events and advance notices."
+  (let* ((title (cdr (assoc 'title event)))
+         (all-times (cdr (assoc 'times event)))
+         (is-today (chime-event-has-any-passed-time event))
+         (is-advance-notice (and chime-day-wide-advance-notice
+                                (chime-event-within-advance-notice-window event))))
+    (cond
+     ;; Event is today
+     (is-today
+      (format "%s is due or scheduled today" title))
+     ;; Event is within advance notice window
+     (is-advance-notice
+      ;; Calculate days until event
+      (let* ((now (current-time))
+             (days-until
+              (-min
+               (--map
+                (when-let* ((timestamp-str (car it))
+                           (is-all-day (not (chime--has-timestamp timestamp-str)))
+                           (parsed (org-parse-time-string timestamp-str))
+                           ;; Use nth accessors for Emacs 26 compatibility
+                           (year (nth 5 parsed))
+                           (month (nth 4 parsed))
+                           (day (nth 3 parsed)))
+                  (let* ((event-time (encode-time 0 0 0 day month year))
+                         (seconds-until (time-subtract event-time now))
+                         (days (/ (float-time seconds-until) 86400.0)))
+                    (ceiling days)))
+                all-times))))
+        (cond
+         ((= days-until 1)
+          (format "%s is tomorrow" title))
+         ((= days-until 2)
+          (format "%s is in 2 days" title))
+         (t
+          (format "%s is in %d days" title days-until)))))
+     ;; Fallback (shouldn't happen)
+     (t
+      (format "%s is due or scheduled today" title)))))
 
 (defun chime--check-event (event)
   "Get notifications for given EVENT.
@@ -574,7 +751,7 @@ TITLE is the event title."
   (let ((time-display (chime--get-hh-mm-from-org-time-string event-time-str))
         (countdown (cond
                     ((< minutes-until 1440) ;; Less than 24 hours
-                     (format "(in %s)" (chime--time-left (* minutes-until 60))))
+                     (format "(%s)" (chime--time-left (* minutes-until 60))))
                     (t
                      (let ((days (/ minutes-until 1440)))
                        (format "(in %d day%s)" days (if (> days 1) "s" "")))))))
@@ -651,11 +828,12 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
 
 (defun chime--update-modeline (events)
   "Update modeline with next upcoming event from EVENTS.
-Only shows events within `chime-modeline-lookahead' minutes.
-Also generates tooltip showing all upcoming events grouped by day."
+Shows soonest event within `chime-modeline-lookahead-minutes' minutes in modeline.
+Tooltip shows events within `chime-tooltip-lookahead-hours' hours
+\(or modeline lookahead if tooltip lookahead is nil)."
   (if (or (not chime-enable-modeline)
-          (not chime-modeline-lookahead)
-          (zerop chime-modeline-lookahead))
+          (not chime-modeline-lookahead-minutes)
+          (zerop chime-modeline-lookahead-minutes))
       (progn
         (setq chime-modeline-string nil)
         (setq chime--upcoming-events nil))
@@ -663,25 +841,33 @@ Also generates tooltip showing all upcoming events grouped by day."
           (soonest-event-obj nil)
           (soonest-event-text nil)
           (soonest-minutes nil)
-          (now (current-time)))
-      ;; Collect upcoming events within lookahead window
+          (now (current-time))
+          (tooltip-lookahead-minutes (if chime-tooltip-lookahead-hours
+                                          (* chime-tooltip-lookahead-hours 60)
+                                        chime-modeline-lookahead-minutes)))
+      ;; Collect upcoming events within tooltip lookahead window
       ;; For events with multiple timestamps, only include the soonest one
       ;; to avoid duplicate entries (e.g., when events are rescheduled)
       (dolist (event events)
         (let* ((all-times (cdr (assoc 'times event)))
-               (times (chime--filter-day-wide-events all-times))
+               ;; For modeline: always filter out all-day events (need specific time)
+               ;; For tooltip: respect chime-tooltip-show-all-day-events setting
+               (times-for-modeline (chime--filter-day-wide-events all-times))
+               (times-for-tooltip (if chime-tooltip-show-all-day-events
+                                      all-times
+                                    (chime--filter-day-wide-events all-times)))
                (soonest-time-for-event nil)
                (soonest-time-info nil)
                (soonest-minutes-for-event nil))
-          ;; Find the soonest upcoming timestamp for THIS event
-          (dolist (time-info times)
+          ;; Find the soonest upcoming timestamp for THIS event (for tooltip)
+          (dolist (time-info times-for-tooltip)
             (when-let* ((time-str (car time-info))
                         (event-time (cdr time-info))
                         (seconds-until (- (float-time event-time) (float-time now)))
                         (minutes-until (/ seconds-until 60)))
-              ;; Only consider future events within lookahead window
+              ;; Only consider future events within tooltip lookahead window
               (when (and (> minutes-until 0)
-                         (<= minutes-until chime-modeline-lookahead))
+                         (<= minutes-until tooltip-lookahead-minutes))
                 ;; Track soonest time for this specific event
                 (when (or (not soonest-minutes-for-event)
                           (< minutes-until soonest-minutes-for-event))
@@ -690,14 +876,30 @@ Also generates tooltip showing all upcoming events grouped by day."
           ;; Only add this event once with its soonest timestamp
           (when soonest-time-info
             (push (list event soonest-time-info soonest-minutes-for-event) upcoming)
+
             ;; Track globally soonest for modeline display
-            (when (or (not soonest-minutes)
-                      (< soonest-minutes-for-event soonest-minutes))
-              (setq soonest-minutes soonest-minutes-for-event)
-              (setq soonest-event-obj event)
-              (setq soonest-event-text
-                    (chime--notification-text
-                     `(,(car soonest-time-info) . ,soonest-minutes-for-event) event))))))
+            ;; IMPORTANT: Only use timed events for modeline (not all-day events)
+            ;; Check if this event has a timed timestamp within modeline lookahead
+            (let ((soonest-timed-minutes nil))
+              (dolist (time-info times-for-modeline)
+                (when-let* ((time-str (car time-info))
+                            (event-time (cdr time-info))
+                            (seconds-until (- (float-time event-time) (float-time now)))
+                            (minutes-until (/ seconds-until 60)))
+                  (when (and (> minutes-until 0)
+                             (<= minutes-until chime-modeline-lookahead-minutes))
+                    (when (or (not soonest-timed-minutes)
+                              (< minutes-until soonest-timed-minutes))
+                      (setq soonest-timed-minutes minutes-until)))))
+              ;; Update modeline if this is the soonest timed event overall
+              (when (and soonest-timed-minutes
+                         (or (not soonest-minutes)
+                             (< soonest-timed-minutes soonest-minutes)))
+                (setq soonest-minutes soonest-timed-minutes)
+                (setq soonest-event-obj event)
+                (setq soonest-event-text
+                      (chime--notification-text
+                       `(,(car soonest-time-info) . ,soonest-timed-minutes) event)))))))
       ;; Sort upcoming events by time (soonest first)
       (setq upcoming (sort upcoming
                           (lambda (a b) (< (nth 2 a) (nth 2 b)))))
@@ -811,7 +1013,16 @@ Combines keyword, tag, and custom predicate blacklists."
     (package-initialize)
     (require 'chime)
 
-    (org-agenda-list 2 (org-read-date nil nil "today"))
+    ;; Calculate agenda span based on max lookahead (convert to days, round up)
+    ;; Use the larger of modeline-lookahead (minutes) and tooltip-lookahead (hours) to ensure
+    ;; we fetch enough events for both. Add 1 day buffer to account for partial days.
+    (let* ((tooltip-lookahead-minutes (if chime-tooltip-lookahead-hours
+                                           (* chime-tooltip-lookahead-hours 60)
+                                         chime-modeline-lookahead-minutes))
+           (max-lookahead-minutes (max chime-modeline-lookahead-minutes tooltip-lookahead-minutes))
+           (max-lookahead-days (ceiling (/ max-lookahead-minutes 1440.0)))
+           (agenda-span (+ max-lookahead-days 1)))
+      (org-agenda-list agenda-span (org-read-date nil nil "today")))
 
     (->> (org-split-string (buffer-string) "\n")
          (--map (plist-get
@@ -1114,13 +1325,13 @@ Does nothing if a check is already in progress in the background."
 When enabled parses your agenda once a minute and emits notifications
 if needed."
   :global
-  :lighter "Chime"
+  :lighter " 🔔"
   (if chime-mode
       (progn
         (chime--start)
         ;; Add modeline string to global-mode-string
         (when (and chime-enable-modeline
-                   (> chime-modeline-lookahead 0))
+                   (> chime-modeline-lookahead-minutes 0))
           (if global-mode-string
               (add-to-list 'global-mode-string 'chime-modeline-string 'append)
             (setq global-mode-string '("" chime-modeline-string)))))
@@ -1133,5 +1344,4 @@ if needed."
       (force-mode-line-update))))
 
 (provide 'chime)
-
 ;;; chime.el ends here

@@ -51,17 +51,21 @@
   "Setup function run before each test."
   (chime-create-test-base-dir)
   ;; Save original values
-  (setq test-chime-modeline--orig-lookahead chime-modeline-lookahead)
-  ;; Set lookahead to 24 hours for testing
-  (setq chime-modeline-lookahead 1440))
+  (setq test-chime-modeline--orig-lookahead chime-modeline-lookahead-minutes)
+  (setq test-chime-modeline--orig-tooltip-lookahead chime-tooltip-lookahead-hours)
+  ;; Set lookahead to 24 hours for testing (both modeline and tooltip)
+  (setq chime-modeline-lookahead-minutes 1440)
+  (setq chime-tooltip-lookahead-hours 24))
 
 (defun test-chime-modeline-teardown ()
   "Teardown function run after each test."
   ;; Restore original values
-  (setq chime-modeline-lookahead test-chime-modeline--orig-lookahead)
+  (setq chime-modeline-lookahead-minutes test-chime-modeline--orig-lookahead)
+  (setq chime-tooltip-lookahead-hours test-chime-modeline--orig-tooltip-lookahead)
   (chime-delete-test-base-dir))
 
 (defvar test-chime-modeline--orig-lookahead nil)
+(defvar test-chime-modeline--orig-tooltip-lookahead nil)
 
 ;;; Helper functions
 
@@ -377,8 +381,9 @@ Comprehensive test of max-events interaction with multi-day grouping:
         ;; Should have gathered 14 events
         (should (= 14 (length events)))
 
-        ;; Set lookahead to 10 days (enough to see all events)
-        (setq chime-modeline-lookahead (* 10 24 60))
+        ;; Set lookahead to 10 days (enough to see all events, both modeline and tooltip)
+        (setq chime-modeline-lookahead-minutes 240)
+        (setq chime-tooltip-lookahead-hours 240)
 
         ;; Test 1: max-events=20 should show all 14
         (let ((chime-modeline-tooltip-max-events 20))
@@ -495,8 +500,9 @@ Comprehensive test of max-events interaction with multi-day grouping:
                        time-str))
              (events (test-chime-modeline--gather-events content)))
 
-        ;; Set lookahead to 60 minutes
-        (setq chime-modeline-lookahead 60)
+        ;; Set lookahead to 60 minutes (both modeline and tooltip)
+        (setq chime-modeline-lookahead-minutes 60)
+        (setq chime-tooltip-lookahead-hours 1)
 
         ;; Update modeline
         (chime--update-modeline events)
@@ -520,8 +526,9 @@ Comprehensive test of max-events interaction with multi-day grouping:
                        time-str))
              (events (test-chime-modeline--gather-events content)))
 
-        ;; Set lookahead to 60 minutes
-        (setq chime-modeline-lookahead 60)
+        ;; Set lookahead to 60 minutes (both modeline and tooltip)
+        (setq chime-modeline-lookahead-minutes 60)
+        (setq chime-tooltip-lookahead-hours 1)
 
         ;; Update modeline
         (chime--update-modeline events)
@@ -653,8 +660,9 @@ Events should be grouped as:
                         future-str)))
              (events (test-chime-modeline--gather-events content)))
 
-        ;; Set lookahead to 72 hours
-        (setq chime-modeline-lookahead (* 72 60))
+        ;; Set lookahead to 72 hours (both modeline and tooltip)
+        (setq chime-modeline-lookahead-minutes 4320)
+        (setq chime-tooltip-lookahead-hours 72)
 
         ;; Update modeline
         (chime--update-modeline events)
@@ -714,6 +722,160 @@ Events should be grouped as:
                 (pos-evening (string-match "Evening Event" tooltip)))
             (should (< pos-morning pos-afternoon))
             (should (< pos-afternoon pos-evening)))))
+    (test-chime-modeline-teardown)))
+
+;;; Tests for tooltip lookahead independence
+
+(ert-deftest test-chime-tooltip-lookahead-hours-independent ()
+  "Test that tooltip can show events beyond modeline lookahead.
+
+Scenario: modeline-lookahead=60 (1 hour), tooltip-lookahead=180 (3 hours)
+- Event at 30 min: appears in BOTH modeline and tooltip
+- Event at 90 min: appears ONLY in tooltip (not modeline)
+- Event at 240 min: appears in NEITHER"
+  (test-chime-modeline-setup)
+  (unwind-protect
+      (let* ((now (current-time))
+             ;; Event in 30 minutes (within modeline lookahead)
+             (event1-time (time-add now (seconds-to-time (* 30 60))))
+             (event1-str (format-time-string "<%Y-%m-%d %a %H:%M>" event1-time))
+             ;; Event in 90 minutes (beyond modeline, within tooltip)
+             (event2-time (time-add now (seconds-to-time (* 90 60))))
+             (event2-str (format-time-string "<%Y-%m-%d %a %H:%M>" event2-time))
+             ;; Event in 240 minutes (beyond both)
+             (event3-time (time-add now (seconds-to-time (* 240 60))))
+             (event3-str (format-time-string "<%Y-%m-%d %a %H:%M>" event3-time))
+             (content (concat
+                       (test-chime-modeline--create-gcal-event
+                        "Soon Event"
+                        event1-str)
+                       (test-chime-modeline--create-gcal-event
+                        "Later Event"
+                        event2-str)
+                       (test-chime-modeline--create-gcal-event
+                        "Far Event"
+                        event3-str)))
+             (events (test-chime-modeline--gather-events content)))
+
+        ;; Set different lookaheads for modeline vs tooltip
+        (setq chime-modeline-lookahead-minutes 60)          ; 1 hour for modeline
+        (setq chime-tooltip-lookahead-hours 3) ; 3 hours for tooltip
+
+        ;; Update modeline
+        (chime--update-modeline events)
+
+        ;; Modeline should show only the 30-min event
+        (should (string-match-p "Soon Event" (or chime-modeline-string "")))
+        (should-not (string-match-p "Later Event" (or chime-modeline-string "")))
+
+        ;; Tooltip should show both 30-min and 90-min events, but not 240-min
+        (should (= 2 (length chime--upcoming-events)))
+
+        (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
+          ;; Tooltip should have event within modeline lookahead
+          (should (string-match-p "Soon Event" tooltip))
+
+          ;; Tooltip should have event beyond modeline but within tooltip lookahead
+          (should (string-match-p "Later Event" tooltip))
+
+          ;; Tooltip should NOT have event beyond tooltip lookahead
+          (should-not (string-match-p "Far Event" tooltip))))
+    (test-chime-modeline-teardown)))
+
+(ert-deftest test-chime-tooltip-lookahead-hours-default ()
+  "Test that tooltip default lookahead (1 year) shows all future events.
+
+The default value effectively means 'show all future events' limited only
+by max-events count."
+  (test-chime-modeline-setup)
+  (unwind-protect
+      (let* ((now (current-time))
+             ;; Event in 30 minutes
+             (event1-time (time-add now (seconds-to-time (* 30 60))))
+             (event1-str (format-time-string "<%Y-%m-%d %a %H:%M>" event1-time))
+             ;; Event in 90 minutes
+             (event2-time (time-add now (seconds-to-time (* 90 60))))
+             (event2-str (format-time-string "<%Y-%m-%d %a %H:%M>" event2-time))
+             ;; Event in 2 days
+             (event3-time (time-add now (seconds-to-time (* 48 3600))))
+             (event3-str (format-time-string "<%Y-%m-%d %a %H:%M>" event3-time))
+             (content (concat
+                       (test-chime-modeline--create-gcal-event
+                        "Soon Event"
+                        event1-str)
+                       (test-chime-modeline--create-gcal-event
+                        "Later Event"
+                        event2-str)
+                       (test-chime-modeline--create-gcal-event
+                        "Far Event"
+                        event3-str)))
+             (events (test-chime-modeline--gather-events content)))
+
+        ;; Set modeline lookahead only (tooltip uses default: 525600 = 1 year)
+        (setq chime-modeline-lookahead-minutes 60)
+        (setq chime-tooltip-lookahead-hours 8760)  ; Default
+
+        ;; Update modeline
+        (chime--update-modeline events)
+
+        ;; Tooltip should see all 3 events (all within 1 year)
+        (should (= 3 (length chime--upcoming-events)))
+
+        ;; Modeline should only show first event (within 60 min)
+        (should (string-match-p "Soon Event" (or chime-modeline-string "")))
+
+        (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
+          ;; All events should appear in tooltip
+          (should (string-match-p "Soon Event" tooltip))
+          (should (string-match-p "Later Event" tooltip))
+          (should (string-match-p "Far Event" tooltip))))
+    (test-chime-modeline-teardown)))
+
+(ert-deftest test-chime-tooltip-lookahead-hours-larger-shows-more ()
+  "Test that larger tooltip lookahead shows more events than modeline.
+
+Real-world scenario: Show next event in modeline if within 2 hours,
+but show all events for today (24 hours) in tooltip."
+  (test-chime-modeline-setup)
+  (unwind-protect
+      (let* ((now (current-time))
+             (content "")
+             (events nil))
+
+        ;; Create 5 events spread across 12 hours
+        (dotimes (i 5)
+          (let* ((hours-offset (+ 1 (* i 2)))  ; 1, 3, 5, 7, 9 hours
+                 (event-time (time-add now (seconds-to-time (* hours-offset 3600))))
+                 (time-str (format-time-string "<%Y-%m-%d %a %H:%M>" event-time))
+                 (title (format "Event-%d-hours" hours-offset)))
+            (setq content (concat content
+                                 (test-chime-modeline--create-gcal-event
+                                  title
+                                  time-str)))))
+
+        (setq events (test-chime-modeline--gather-events content))
+
+        ;; Set lookaheads: 2 hours for modeline, 12 hours for tooltip
+        (setq chime-modeline-lookahead-minutes 120)
+        (setq chime-tooltip-lookahead-hours 12)
+
+        ;; Update modeline
+        (chime--update-modeline events)
+
+        ;; Modeline should show only first event (within 2 hours)
+        (should (string-match-p "Event-1-hours" (or chime-modeline-string "")))
+        (should-not (string-match-p "Event-5-hours" (or chime-modeline-string "")))
+
+        ;; Tooltip should show all 5 events (all within 12 hours)
+        (should (= 5 (length chime--upcoming-events)))
+
+        (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
+          ;; All events should appear in tooltip
+          (should (string-match-p "Event-1-hours" tooltip))
+          (should (string-match-p "Event-3-hours" tooltip))
+          (should (string-match-p "Event-5-hours" tooltip))
+          (should (string-match-p "Event-7-hours" tooltip))
+          (should (string-match-p "Event-9-hours" tooltip))))
     (test-chime-modeline-teardown)))
 
 (provide 'test-chime-modeline)

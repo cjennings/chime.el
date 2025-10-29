@@ -59,7 +59,7 @@ This package is NOT YET available on MELPA.
 
   ;; Modeline display (see "Modeline Display" section for more options)
   (setq chime-enable-modeline t)
-  (setq chime-modeline-lookahead 30)
+  (setq chime-modeline-lookahead-minutes 60)
   (setq chime-modeline-format " ⏰ %s")
 
   ;; Notification settings
@@ -126,11 +126,11 @@ Lower values make notifications more responsive but increase system load. Higher
 
 **Choosing a polling interval:**
 
+- *120-300 seconds (2-5 minutes)*: Okay for reducing system load, but most people require more timely notifications. 
 - *60 seconds (default)*: Ideal for most users. Matches org's minute-based timestamps and provides timely notifications with minimal overhead.
-- *30 seconds*: Good for time-sensitive events where you want quicker notification delivery. Reasonable resource usage.
-- *15-10 seconds*: Maximum responsiveness, but consider the trade-off—you're polling 4-6 times more frequently for marginal precision gain on minute-based events.
-- *Below 10 seconds*: Not recommended. Org events are scheduled to the minute, so faster polling provides little benefit while significantly increasing CPU, disk I/O, and battery usage.
-- *120-300 seconds (2-5 minutes)*: Good for reducing system load if you don't need immediate notifications.
+- *30 seconds*: Fine if you want quicker notification delivery. Reasonable resource usage.
+- *15-10 seconds*: Maximum responsiveness, but you're polling 4-6 times more frequently for marginal precision gain on minute-based events.
+- *Below 10 seconds*: Not recommended or supported. Org events are scheduled to the minute. Faster polling provides near-zero benefit while significantly increasing CPU, disk I/O, and battery usage.
 
 **Note:** Changes take effect after restarting chime-mode (=M-x chime-mode= twice, or restart Emacs).
 
@@ -165,14 +165,14 @@ The package includes a pleasant chime sound in GPL-compatible WAV format. You ca
 
 *** Modeline Display
 
-Show the next upcoming event in your modeline:
+Display your next upcoming event in your modeline:
 
 #+BEGIN_SRC elisp
 ;; Enable/disable modeline display (default: t)
 (setq chime-enable-modeline t)
 
-;; Show events up to 30 minutes ahead (default: 30)
-(setq chime-modeline-lookahead 30)
+;; Show events up to 60 minutes ahead (default: 60)
+(setq chime-modeline-lookahead-minutes 60)
 
 ;; Customize the modeline prefix format (default: " ⏰ %s")
 (setq chime-modeline-format " [Next: %s]")
@@ -211,9 +211,31 @@ The tooltip displays up to 5 events by default. Configure the maximum with:
 ;; Show up to 10 events in tooltip
 (setq chime-modeline-tooltip-max-events 10)
 
-;; Show all events in lookahead window (no limit)
+;; Show all events in lookahead window (beware -- no limit!)
 (setq chime-modeline-tooltip-max-events nil)
 #+END_SRC
+
+***** Tooltip Lookahead Window
+
+The tooltip can show events beyond the modeline lookahead window. By default, it shows events up to 1 year (8760 hours) in the future, while the modeline only shows events within the next hour:
+
+#+BEGIN_SRC elisp
+;; Modeline shows events within next 60 minutes (default)
+(setq chime-modeline-lookahead-minutes 60)
+
+;; Tooltip shows events within next 8760 hours / 1 year (default)
+(setq chime-tooltip-lookahead-hours 8760)
+
+;; Example: Show only today's events in tooltip (24 hours)
+(setq chime-tooltip-lookahead-hours 24)
+
+;; Example: Show events for the next week in tooltip
+(setq chime-tooltip-lookahead-hours 168)  ; 7 days × 24 hours
+#+END_SRC
+
+This separation allows you to:
+- Keep the modeline focused on imminent events (tactical view)
+- See a broader timeline in the tooltip (strategic view)
 
 ***** Click to Jump
 
@@ -346,7 +368,7 @@ For maximum modeline space savings:
 
 #+BEGIN_SRC elisp
 (setq chime-enable-modeline t)
-(setq chime-modeline-lookahead 30)
+(setq chime-modeline-lookahead-minutes 60)
 (setq chime-modeline-format " ⏰%s")                    ; Minimal prefix
 (setq chime-notification-text-format "%t (%u)")        ; No time shown
 (setq chime-time-left-format-short "%mm")              ; Compact short
@@ -362,7 +384,7 @@ For maximum modeline space savings:
 (setq chime-enable-modeline nil)
 
 ;; Alternative: set lookahead to 0 (legacy method)
-(setq chime-modeline-lookahead 0)
+(setq chime-modeline-lookahead-minutes 0)
 #+END_SRC
 
 *** Notification Settings
@@ -390,6 +412,168 @@ For maximum modeline space savings:
 ;; Never notify for these tags
 (setq chime-tags-blacklist '("someday"))
 #+END_SRC
+
+**** Whitelist and Blacklist Precedence
+
+If the same keyword or tag appears in both a whitelist and blacklist, the **blacklist takes precedence** and the item will be filtered out. This ensures sensitive information cannot accidentally be exposed in notifications.
+
+Examples:
+- Item with =TODO= keyword when =TODO= is in both ~chime-keyword-whitelist~ and ~chime-keyword-blacklist~ → **filtered out** (blacklist wins)
+- Item with =:urgent:= tag when =urgent= is in both ~chime-tags-whitelist~ and ~chime-tags-blacklist~ → **filtered out** (blacklist wins)
+- Item with whitelisted keyword but blacklisted tag → **filtered out** (blacklist wins)
+
+Most users configure either whitelists or blacklists, not both. If you use both, ensure they don't overlap to avoid confusion.
+
+*** All-Day Events
+
+Chime distinguishes between *timed events* (with specific times like =10:00=) and *all-day events* (without times, such as birthdays or holidays).
+
+**** What are All-Day Events?
+
+All-day events are org timestamps without a time component:
+
+#+BEGIN_SRC org
+,* Blake's Birthday
+<2025-12-19 Fri>
+
+,* Holiday: Christmas
+<2025-12-25 Thu>
+
+,* Multi-day Conference
+<2025-11-10 Mon>--<2025-11-13 Thu>
+#+END_SRC
+
+Compare with timed events:
+
+#+BEGIN_SRC org
+,* Team Meeting
+<2025-10-28 Tue 14:30-15:30>
+
+,* Doctor Appointment
+SCHEDULED: <2025-10-30 Thu 10:00>
+#+END_SRC
+
+**** Current Behavior
+
+**Modeline:**
+- All-day events are *never* shown in the modeline
+- Only timed events with specific times appear
+- Rationale: Modeline shows urgent, time-sensitive items
+
+**Notifications:**
+- All-day events can trigger notifications at configured times
+- By default, =chime-day-wide-alert-times= is =nil= (notifications disabled)
+- When set, chime will notify you of all-day events happening *today* at those times
+
+**** Configuring All-Day Event Notifications
+
+To receive notifications for all-day events (like birthdays):
+
+#+BEGIN_SRC elisp
+;; Notify at 8:00 AM for all-day events happening today
+(setq chime-day-wide-alert-times '("08:00"))
+
+;; Multiple notification times
+(setq chime-day-wide-alert-times '("08:00" "17:00"))  ; Morning and evening
+
+;; Disable all-day event notifications (default)
+(setq chime-day-wide-alert-times nil)
+#+END_SRC
+
+**Example workflow:**
+1. You have =* Blake's Birthday <2025-12-19 Fri>= in your org file
+2. On December 19th at 8:00 AM, chime notifies: "Blake's Birthday is due or scheduled today"
+3. This gives you a reminder to send birthday wishes or buy a gift
+
+**** Showing Overdue TODOs
+
+Control whether overdue TODO items and past events appear alongside all-day event notifications:
+
+#+BEGIN_SRC elisp
+;; Show overdue items with all-day event notifications (default: t)
+(setq chime-show-any-overdue-with-day-wide-alerts t)
+
+;; Only show today's events, not overdue items from past days
+(setq chime-show-any-overdue-with-day-wide-alerts nil)
+#+END_SRC
+
+**When enabled (default =t=):**
+- Shows today's DEADLINE/SCHEDULED tasks that have passed (e.g., 9am deadline when it's now 2pm)
+- Shows today's all-day events even if you launch Emacs after the alert time (e.g., launch at 10am when alert was 8am)
+- Shows all-day events from past days (e.g., yesterday's birthday, last week's holiday)
+
+**When disabled (=nil=):**
+- Shows today's DEADLINE/SCHEDULED tasks that have passed ✓
+- Shows today's all-day events even if you launch Emacs late ✓
+- Hides all-day events from past days (prevents old birthday/holiday spam) ✓
+
+Most users want the default (=t=) to catch overdue items. Disable it if you only want to see today's events and don't want past birthdays/holidays cluttering notifications.
+
+***** Understanding the Interplay with Alert Times
+
+The relationship between =chime-day-wide-alert-times= and =chime-show-any-overdue-with-day-wide-alerts= can be confusing:
+
+- =chime-day-wide-alert-times= controls **when** notifications fire (e.g., 8:00 AM)
+- =chime-show-any-overdue-with-day-wide-alerts= controls **what happens if you miss that time**
+
+**Example scenario:**
+#+BEGIN_EXAMPLE
+You have:
+  (setq chime-day-wide-alert-times '("08:00"))
+  (setq chime-show-any-overdue-with-day-wide-alerts t)
+
+Today's birthday: * Blake's Birthday <2025-10-28 Tue>
+
+Timeline:
+- 8:00 AM: Chime fires notification "Blake's Birthday is due or scheduled today" ✓
+- You close Emacs at 9:00 AM
+- You relaunch Emacs at 2:00 PM (afternoon)
+- Because overdue alerts are ENABLED (t), chime shows the notification again ✓
+  → This catches you up on today's events you might have missed
+#+END_EXAMPLE
+
+**If you disable overdue alerts:**
+#+BEGIN_EXAMPLE
+  (setq chime-show-any-overdue-with-day-wide-alerts nil)
+
+Same scenario, but now:
+- 8:00 AM: Chime fires notification ✓
+- You close Emacs at 9:00 AM
+- You relaunch Emacs at 2:00 PM
+- Because overdue alerts are DISABLED (nil), chime STILL shows today's birthday ✓
+  → Today's events are always shown regardless of this setting
+  → This setting only hides events from PAST DAYS (yesterday, last week, etc.)
+#+END_EXAMPLE
+
+**Key insight:** You'll always see today's all-day events when you launch Emacs, even if you missed the configured alert time. The =chime-show-any-overdue-with-day-wide-alerts= setting only controls whether you see events from *previous days*.
+
+**** Common Use Cases
+
+**Birthdays:**
+#+BEGIN_SRC org
+,* Blake Michael's Birthday
+<2025-02-20 Thu>
+#+END_SRC
+
+With =chime-day-wide-alert-times= set to ='("08:00")=, you'll get a morning reminder on the birthday.
+
+**Holidays:**
+#+BEGIN_SRC org
+,* Holiday: Thanksgiving
+<2025-11-27 Thu>
+#+END_SRC
+
+**Multi-day Events:**
+#+BEGIN_SRC org
+,* Conference: EmacsCon 2025
+<2025-11-10 Mon>--<2025-11-13 Thu>
+#+END_SRC
+
+You'll receive notifications on each day of the conference at your configured alert times.
+
+**** Integration with org-contacts
+
+Note: If you use [[https://repo.or.cz/org-contacts.git][org-contacts]] for managing birthdays, be aware that org-contacts uses a special format (=BIRTHDAY= property) that is not directly supported by org-agenda timestamps. You'll need to manually add timestamp entries for birthdays you want notifications for, or use org-contacts' own reminder system.
 
 ** Usage
 
@@ -487,7 +671,7 @@ For Monday-Friday events, you can either:
 
     ;; Modeline display - compact format
     (setq chime-enable-modeline t)
-    (setq chime-modeline-lookahead 120)                 ; Show events 2 hrs ahead
+    (setq chime-modeline-lookahead-minutes 120)                 ; Show events 2 hrs ahead
     (setq chime-modeline-format " ⏰%s")                ; Minimal prefix
     (setq chime-notification-text-format "%t (%u)")    ; Title + countdown only
     (setq chime-display-time-format-string "%H:%M")    ; 24-hour time
@@ -551,6 +735,32 @@ M-x chime-check
 - =alert= package
 - =dash= package
 - =async= package
+
+** Test Suite
+
+CHIME includes a comprehensive test suite to ensure reliability and prevent regressions:
+
+- *320 total tests* across 21 test files
+  - All tests are unit tests - Fast, isolated tests of individual functions
+  - Includes comprehensive integration scenarios using real org-gcal patterns
+
+The test suite covers:
+- Timestamp parsing and time calculations
+- All-day event detection and notifications
+- Event filtering (keywords, tags, predicates)
+- Tooltip and modeline formatting
+- Notification text generation
+- Title sanitization and edge cases
+- Real-world org-gcal integration scenarios
+
+Run the full test suite:
+
+#+BEGIN_SRC bash
+cd tests
+emacs --batch -Q -L /path/to/deps -l ert \
+  --eval '(dolist (f (directory-files "." t "^test-.*\\.el$")) (load f))' \
+  --eval '(ert-run-tests-batch-and-exit)'
+#+END_SRC
 
 ** License
 
