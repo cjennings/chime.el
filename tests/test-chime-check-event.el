@@ -41,6 +41,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -55,171 +56,198 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-check-event-single-notification-returns-message ()
-  "Test that single matching notification returns formatted message."
+  "Test that single matching notification returns formatted message.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at 14:10 (10 minutes from now)
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
-                          (title . "Team Meeting")
-                          (intervals . (10))))
-                 (result (chime--check-event event)))
-        ;; Should return list with one formatted message
-        (should (listp result))
-        (should (= 1 (length result)))
-        (should (stringp (car result)))
-        ;; Message should contain title and time information
-        (should (string-match-p "Team Meeting" (car result)))
-        (should (string-match-p "02:10 PM" (car result)))
-        (should (string-match-p "in 10 minutes" (car result))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at 14:10 (10 minutes from now)
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time))
+             (event `((times . ((,timestamp-str . ,event-time)))
+                      (title . "Team Meeting")
+                      (intervals . (10)))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            ;; Should return list with one formatted message
+            (should (listp result))
+            (should (= 1 (length result)))
+            (should (stringp (car result)))
+            ;; Message should contain title and time information
+            (should (string-match-p "Team Meeting" (car result)))
+            (should (string-match-p "02:10 PM" (car result)))
+            (should (string-match-p "in 10 minutes" (car result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-multiple-notifications-returns-multiple-messages ()
-  "Test that multiple matching notifications return multiple formatted messages."
+  "Test that multiple matching notifications return multiple formatted messages.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Two events: 14:10 and 14:05
-                 (event-time-1 (encode-time 0 10 14 24 10 2025))
-                 (event-time-2 (encode-time 0 5 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time-1)
-                                     ("<2025-10-24 Fri 14:05>" . ,event-time-2))))
-                          (title . "Important Call")
-                          (intervals . (10 5))))  ; Both match
-                 (result (chime--check-event event)))
-        ;; Should return two formatted messages
-        (should (listp result))
-        (should (= 2 (length result)))
-        (should (cl-every #'stringp result))
-        ;; Both should mention the title
-        (should (string-match-p "Important Call" (car result)))
-        (should (string-match-p "Important Call" (cadr result))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Two events: 14:10 and 14:05
+             (event-time-1 (test-time-today-at 14 10))
+             (event-time-2 (test-time-today-at 14 5))
+             (timestamp-str-1 (test-timestamp-string event-time-1))
+             (timestamp-str-2 (test-timestamp-string event-time-2))
+             (event `((times . ((,timestamp-str-1 . ,event-time-1)
+                                (,timestamp-str-2 . ,event-time-2)))
+                      (title . "Important Call")
+                      (intervals . (10 5)))))  ; Both match
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            ;; Should return two formatted messages
+            (should (listp result))
+            (should (= 2 (length result)))
+            (should (cl-every #'stringp result))
+            ;; Both should mention the title
+            (should (string-match-p "Important Call" (car result)))
+            (should (string-match-p "Important Call" (cadr result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-zero-interval-returns-right-now-message ()
-  "Test that zero interval produces 'right now' message."
+  "Test that zero interval produces 'right now' message.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at exactly now
-                 (event-time (encode-time 0 0 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:00>" . ,event-time))))
-                          (title . "Daily Standup")
-                          (intervals . (0))))
-                 (result (chime--check-event event)))
-        (should (listp result))
-        (should (= 1 (length result)))
-        (should (string-match-p "Daily Standup" (car result)))
-        (should (string-match-p "right now" (car result))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at exactly now
+             (event-time (test-time-today-at 14 0))
+             (timestamp-str (test-timestamp-string event-time))
+             (event `((times . ((,timestamp-str . ,event-time)))
+                      (title . "Daily Standup")
+                      (intervals . (0)))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            (should (listp result))
+            (should (= 1 (length result)))
+            (should (string-match-p "Daily Standup" (car result)))
+            (should (string-match-p "right now" (car result))))))
     (test-chime-check-event-teardown)))
 
 ;;; Boundary Cases
 
 (ert-deftest test-chime-check-event-no-matching-notifications-returns-empty-list ()
-  "Test that event with no matching times returns empty list."
+  "Test that event with no matching times returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at 14:20 (doesn't match 10 minute interval)
-                 (event-time (encode-time 0 20 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:20>" . ,event-time))))
-                          (title . "Future Event")
-                          (intervals . (10))))
-                 (result (chime--check-event event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at 14:20 (doesn't match 10 minute interval)
+             (event-time (test-time-today-at 14 20))
+             (timestamp-str (test-timestamp-string event-time))
+             (event `((times . ((,timestamp-str . ,event-time)))
+                      (title . "Future Event")
+                      (intervals . (10)))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-day-wide-event-returns-empty-list ()
-  "Test that day-wide event (no time) returns empty list."
+  "Test that day-wide event (no time) returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event-time (encode-time 0 0 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri>" . ,event-time))))
-                          (title . "All Day Event")
-                          (intervals . (10))))
-                 (result (chime--check-event event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+      (let* ((now (test-time-today-at 14 0))
+             (event-time (test-time-today-at 14 0))
+             (timestamp-str (test-timestamp-string event-time t))  ; all-day format
+             (event `((times . ((,timestamp-str . ,event-time)))
+                      (title . "All Day Event")
+                      (intervals . (10)))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-check-event-teardown)))
 
 ;;; Error Cases
 
 (ert-deftest test-chime-check-event-empty-times-returns-empty-list ()
-  "Test that event with no times returns empty list."
+  "Test that event with no times returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event `((times . (()))
-                          (title . "No Times Event")
-                          (intervals . (10))))
-                 (result (chime--check-event event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+      (let* ((now (test-time-today-at 14 0))
+             (event `((times . (()))
+                      (title . "No Times Event")
+                      (intervals . (10)))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-empty-intervals-returns-empty-list ()
-  "Test that event with no intervals returns empty list."
+  "Test that event with no intervals returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
-                          (title . "No Intervals Event")
-                          (intervals . ())))
-                 (result (chime--check-event event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+      (let* ((now (test-time-today-at 14 0))
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time))
+             (event `((times . ((,timestamp-str . ,event-time)))
+                      (title . "No Intervals Event")
+                      (intervals . ()))))
+        (with-test-time now
+          (let ((result (chime--check-event event)))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-error-nil-event-handles-gracefully ()
-  "Test that nil event parameter doesn't crash."
+  "Test that nil event parameter doesn't crash.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time)))
-        ;; Should not error with nil event
-        (should-not (condition-case nil
-                        (progn (chime--check-event nil) nil)
-                      (error t))))
+      (let ((now (test-time-today-at 14 0)))
+        (with-test-time now
+          ;; Should not error with nil event
+          (should-not (condition-case nil
+                          (progn (chime--check-event nil) nil)
+                        (error t)))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-error-invalid-event-structure-handles-gracefully ()
-  "Test that invalid event structure doesn't crash."
+  "Test that invalid event structure doesn't crash.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event missing required fields
-                 (invalid-event '((invalid . "structure"))))
-        ;; Should not crash even with invalid event
-        (should-not (condition-case nil
-                        (progn (chime--check-event invalid-event) nil)
-                      (error t))))
+      (let ((now (test-time-today-at 14 0))
+            ;; Event missing required fields
+            (invalid-event '((invalid . "structure"))))
+        (with-test-time now
+          ;; Should not crash even with invalid event
+          (should-not (condition-case nil
+                          (progn (chime--check-event invalid-event) nil)
+                        (error t)))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-error-event-with-nil-times-handles-gracefully ()
-  "Test that event with nil times field doesn't crash."
+  "Test that event with nil times field doesn't crash.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-check-event-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event '((times . nil)
-                          (title . "Event with nil times")
-                          (intervals . (10)))))
-        ;; Should not crash
-        (should-not (condition-case nil
-                        (progn (chime--check-event event) nil)
-                      (error t))))
+      (let ((now (test-time-today-at 14 0))
+            (event '((times . nil)
+                     (title . "Event with nil times")
+                     (intervals . (10)))))
+        (with-test-time now
+          ;; Should not crash
+          (should-not (condition-case nil
+                          (progn (chime--check-event event) nil)
+                        (error t)))))
     (test-chime-check-event-teardown)))
 
 (provide 'test-chime-check-event)
