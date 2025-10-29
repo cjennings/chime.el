@@ -1312,7 +1312,7 @@ FORMAT-STRING and ARGS are passed to `format'."
 Shows events stored in `chime--upcoming-events' with their times and titles."
   (interactive)
   (if (not chime--upcoming-events)
-      (message "No upcoming events stored")
+      (message "Chime: No upcoming events stored")
     (chime--log-silently "=== Chime Debug: Upcoming Events (%d total) ==="
                          (length chime--upcoming-events))
     (let ((grouped (chime--group-events-by-day chime--upcoming-events)))
@@ -1339,11 +1339,49 @@ Shows the tooltip text that would appear when hovering over the modeline."
   (interactive)
   (let ((tooltip-text (chime--generate-tooltip)))
     (if (not tooltip-text)
-        (message "No tooltip content available")
+        (message "Chime: No tooltip content available")
       (chime--log-silently "=== Chime Debug: Tooltip Content ===")
       (chime--log-silently "%s" tooltip-text)
       (chime--log-silently "=== End Chime Debug ===\n")
       (message "Dumped tooltip content to *Messages* buffer"))))
+
+(defun chime--debug-config ()
+  "Dump chime configuration and status to *Messages* buffer.
+Shows all relevant settings, agenda files, and current state."
+  (interactive)
+  (chime--log-silently "=== Chime Debug: Configuration ===")
+  (chime--log-silently "Mode enabled: %s" chime-mode)
+  (chime--log-silently "Process running: %s" (process-live-p chime--process))
+  (chime--log-silently "Last check: %s"
+                       (if chime--last-check-time
+                           (format-time-string "%Y-%m-%d %H:%M:%S" chime--last-check-time)
+                         "never"))
+  (chime--log-silently "\nModeline settings:")
+  (chime--log-silently "  chime-enable-modeline: %s" chime-enable-modeline)
+  (chime--log-silently "  chime-modeline-lookahead-minutes: %s" chime-modeline-lookahead-minutes)
+  (chime--log-silently "  chime-modeline-string: %s"
+                       (if chime-modeline-string
+                           (format "\"%s\"" chime-modeline-string)
+                         "nil"))
+  (chime--log-silently "\nNotification settings:")
+  (chime--log-silently "  chime-alert-time: %s" chime-alert-time)
+  (chime--log-silently "  chime-notification-backends: %s" chime-notification-backends)
+  (chime--log-silently "\nFilters:")
+  (chime--log-silently "  chime-keyword-blacklist: %s" chime-keyword-blacklist)
+  (chime--log-silently "  chime-keyword-whitelist: %s" chime-keyword-whitelist)
+  (chime--log-silently "  chime-tags-blacklist: %s" chime-tags-blacklist)
+  (chime--log-silently "  chime-tags-whitelist: %s" chime-tags-whitelist)
+  (chime--log-silently "\nOrg agenda files (%d):" (length org-agenda-files))
+  (dolist (file org-agenda-files)
+    (chime--log-silently "  - %s %s"
+                         file
+                         (if (file-exists-p file) "" "[MISSING]")))
+  (chime--log-silently "\nStored events: %s"
+                       (if chime--upcoming-events
+                           (format "%d" (length chime--upcoming-events))
+                         "none"))
+  (chime--log-silently "=== End Chime Debug ===\n")
+  (message "Chime: Configuration dumped to *Messages* buffer"))
 
 ;;;###autoload
 (defun chime-check ()
