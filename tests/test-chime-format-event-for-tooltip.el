@@ -41,6 +41,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -55,13 +56,17 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-format-event-for-tooltip-normal-minutes ()
-  "Test formatting event with minutes until event."
+  "Test formatting event with minutes until event.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 14:10>"
-                     10
-                     "Team Meeting")))
+      (let* ((time (test-time-tomorrow-at 14 10))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      10
+                      "Team Meeting")))
         (should (stringp result))
         (should (string-match-p "Team Meeting" result))
         (should (string-match-p "02:10 PM" result))
@@ -69,13 +74,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-normal-hours ()
-  "Test formatting event with hours until event."
+  "Test formatting event with hours until event.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 15:30>"
-                     90
-                     "Afternoon Meeting")))
+      (let* ((time (test-time-tomorrow-at 15 30))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      90
+                      "Afternoon Meeting")))
         (should (stringp result))
         (should (string-match-p "Afternoon Meeting" result))
         (should (string-match-p "03:30 PM" result))
@@ -83,13 +92,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-normal-multiple-hours ()
-  "Test formatting event with multiple hours until event."
+  "Test formatting event with multiple hours until event.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 17:00>"
-                     300
-                     "End of Day Review")))
+      (let* ((time (test-time-tomorrow-at 17 0))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      300
+                      "End of Day Review")))
         (should (stringp result))
         (should (string-match-p "End of Day Review" result))
         (should (string-match-p "05:00 PM" result))
@@ -99,13 +112,17 @@
 ;;; Boundary Cases
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-exactly-one-day ()
-  "Test formatting event exactly 1 day away (1440 minutes)."
+  "Test formatting event exactly 1 day away (1440 minutes).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-25 Sat 09:00>"
-                     1440
-                     "Tomorrow Event")))
+      (let* ((time (test-time-days-from-now 1 9 0))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      1440
+                      "Tomorrow Event")))
         (should (stringp result))
         (should (string-match-p "Tomorrow Event" result))
         (should (string-match-p "09:00 AM" result))
@@ -113,13 +130,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-multiple-days ()
-  "Test formatting event multiple days away."
+  "Test formatting event multiple days away.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-27 Mon 10:00>"
-                     4320  ; 3 days
-                     "Future Meeting")))
+      (let* ((time (test-time-days-from-now 3 10 0))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      4320  ; 3 days
+                      "Future Meeting")))
         (should (stringp result))
         (should (string-match-p "Future Meeting" result))
         (should (string-match-p "10:00 AM" result))
@@ -127,13 +148,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-just-under-one-day ()
-  "Test formatting event just under 1 day away (1439 minutes)."
+  "Test formatting event just under 1 day away (1439 minutes).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-25 Sat 08:59>"
-                     1439
-                     "Almost Tomorrow")))
+      (let* ((time (test-time-tomorrow-at 8 59))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      1439
+                      "Almost Tomorrow")))
         (should (stringp result))
         (should (string-match-p "Almost Tomorrow" result))
         (should (string-match-p "08:59 AM" result))
@@ -142,13 +167,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-zero-minutes ()
-  "Test formatting event happening right now (0 minutes)."
+  "Test formatting event happening right now (0 minutes).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 14:00>"
-                     0
-                     "Current Event")))
+      (let* ((time (test-time-today-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      0
+                      "Current Event")))
         (should (stringp result))
         (should (string-match-p "Current Event" result))
         (should (string-match-p "02:00 PM" result))
@@ -156,13 +185,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-one-minute ()
-  "Test formatting event 1 minute away."
+  "Test formatting event 1 minute away.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 14:01>"
-                     1
-                     "Imminent Event")))
+      (let* ((time (test-time-today-at 14 1))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      1
+                      "Imminent Event")))
         (should (stringp result))
         (should (string-match-p "Imminent Event" result))
         (should (string-match-p "02:01 PM" result))
@@ -170,12 +203,16 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-boundary-long-title ()
-  "Test formatting event with very long title."
+  "Test formatting event with very long title.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let* ((long-title (make-string 200 ?x))
+      (let* ((time (test-time-today-at 14 10))
+             (timestamp (test-timestamp-string time))
+             (long-title (make-string 200 ?x))
              (result (chime--format-event-for-tooltip
-                      "<2025-10-24 Fri 14:10>"
+                      timestamp
                       10
                       long-title)))
         (should (stringp result))
@@ -185,15 +222,18 @@
 ;;; Error Cases
 
 (ert-deftest test-chime-format-event-for-tooltip-error-nil-title ()
-  "Test formatting with nil title doesn't crash."
+  "Test formatting with nil title doesn't crash.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (progn
+      (let* ((time (test-time-today-at 14 10))
+             (timestamp (test-timestamp-string time)))
         ;; Should not crash with nil title
         (should-not (condition-case nil
                         (progn
                           (chime--format-event-for-tooltip
-                           "<2025-10-24 Fri 14:10>"
+                           timestamp
                            10
                            nil)
                           nil)
@@ -201,13 +241,17 @@
     (test-chime-format-event-for-tooltip-teardown)))
 
 (ert-deftest test-chime-format-event-for-tooltip-error-empty-title ()
-  "Test formatting with empty title."
+  "Test formatting with empty title.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-format-event-for-tooltip-setup)
   (unwind-protect
-      (let ((result (chime--format-event-for-tooltip
-                     "<2025-10-24 Fri 14:10>"
-                     10
-                     "")))
+      (let* ((time (test-time-today-at 14 10))
+             (timestamp (test-timestamp-string time))
+             (result (chime--format-event-for-tooltip
+                      timestamp
+                      10
+                      "")))
         (should (stringp result))
         (should (string-match-p "02:10 PM" result)))
     (test-chime-format-event-for-tooltip-teardown)))
