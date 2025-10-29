@@ -32,7 +32,7 @@ GREEN = \033[0;32m
 YELLOW = \033[1;33m
 NC = \033[0m # No Color
 
-.PHONY: all test test-file test-one test-unit test-integration clean help check-deps
+.PHONY: all test test-file test-one test-unit test-integration validate clean help check-deps
 
 # Default target
 all: test
@@ -158,6 +158,39 @@ list:
 	@echo "Available tests:"
 	@grep -h "^(ert-deftest" test-*.el | sed 's/^(ert-deftest \([^ ]*\).*/  \1/' | sort
 
+# Validate Emacs Lisp syntax
+validate:
+	@echo "$(YELLOW)Validating Emacs Lisp syntax...$(NC)"
+	@failed=0; \
+	total=0; \
+	for file in ../chime.el test-*.el testutil-*.el; do \
+		if [ -f "$$file" ] && [ ! -d "$$file" ]; then \
+			total=$$((total + 1)); \
+			output=$$($(EMACS) --batch $(LOADPATH) --eval "(progn \
+				(setq byte-compile-error-on-warn nil) \
+				(find-file \"$$file\") \
+				(condition-case err \
+					(progn \
+						(check-parens) \
+						(message \"✓ $$file - parentheses balanced\")) \
+					(error \
+						(message \"✗ $$file: %s\" (error-message-string err)) \
+						(kill-emacs 1))))" 2>&1 | grep -E '(✓|✗)'); \
+			if [ $$? -eq 0 ]; then \
+				echo "$(GREEN)$$output$(NC)"; \
+			else \
+				echo "$(RED)$$output$(NC)"; \
+				failed=$$((failed + 1)); \
+			fi; \
+		fi; \
+	done; \
+	if [ $$failed -eq 0 ]; then \
+		echo "$(GREEN)✓ All $$total files validated successfully$(NC)"; \
+	else \
+		echo "$(RED)✗ $$failed of $$total files failed validation$(NC)"; \
+		exit 1; \
+	fi
+
 # Clean byte-compiled files
 clean:
 	@echo "$(YELLOW)Cleaning byte-compiled files...$(NC)"
@@ -175,6 +208,7 @@ help:
 	@echo "  make test-one TEST=pilot       - Run one specific test (fuzzy match)"
 	@echo "  make test-unit                 - Run unit tests only"
 	@echo "  make test-integration          - Run integration tests only"
+	@echo "  make validate                  - Validate Emacs Lisp syntax (parens + byte-compile)"
 	@echo "  make count                     - Count tests per file"
 	@echo "  make list                      - List all test names"
 	@echo "  make clean                     - Remove byte-compiled files and logs"
