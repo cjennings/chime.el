@@ -416,15 +416,20 @@ supported by your system."
   :type '(choice (const :tag "Use system beep" nil)
                  (file :tag "Sound file path")))
 
-(defcustom chime-debug nil
+(defcustom chime-debug t
   "Enable debug functions for troubleshooting chime behavior.
 When non-nil, loads chime-debug.el which provides:
 - `chime--debug-dump-events' - Show all stored upcoming events
 - `chime--debug-dump-tooltip' - Show tooltip content
 - `chime--debug-config' - Show complete configuration dump
+- `chime-debug-monitor-event-loading' - Monitor event loading timing
 
 These functions write detailed information to the *Messages* buffer
 without cluttering the echo area.
+
+When enabled, automatically monitors event loading to help diagnose
+timing issues where the modeline takes a while to populate after
+Emacs startup.
 
 Set to t to enable debug functions:
   (setq chime-debug t)
@@ -1376,6 +1381,10 @@ if needed."
             (delq 'chime-modeline-string global-mode-string))
       (setq chime-modeline-string nil)
       (force-mode-line-update))))
+
+;; Automatically enable event loading monitor when debug mode is on
+(when chime-debug
+  (chime-debug-monitor-event-loading))
 
 (provide 'chime)
 ;;; chime.el ends here
