@@ -41,6 +41,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -55,10 +56,13 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-timestamp-parse-standard-timestamp-returns-time-list ()
-  "Test that a standard timestamp with time component returns a time list."
+  "Test that a standard timestamp with time component returns a time list.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 14:30>")
+      (let* ((time (test-time-tomorrow-at 14 30))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         ;; Should return a time list (list of integers)
         (should (listp result))
@@ -70,10 +74,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-scheduled-timestamp-returns-time-list ()
-  "Test that a SCHEDULED timestamp parses correctly."
+  "Test that a SCHEDULED timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 09:00>")
+      (let* ((time (test-time-tomorrow-at 9 0))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -81,10 +88,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-deadline-timestamp-returns-time-list ()
-  "Test that a DEADLINE timestamp parses correctly."
+  "Test that a DEADLINE timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 17:00>")
+      (let* ((time (test-time-tomorrow-at 17 0))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -92,10 +102,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-timestamp-with-weekly-repeater-returns-time-list ()
-  "Test that a timestamp with +1w repeater parses correctly."
+  "Test that a timestamp with +1w repeater parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 14:00 +1w>")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (format-time-string "<%Y-%m-%d %a %H:%M +1w>" time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -103,10 +116,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-timestamp-with-completion-repeater-returns-time-list ()
-  "Test that a timestamp with .+1d repeater parses correctly."
+  "Test that a timestamp with .+1d repeater parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 08:00 .+1d>")
+      (let* ((time (test-time-tomorrow-at 8 0))
+             (timestamp (format-time-string "<%Y-%m-%d %a %H:%M .+1d>" time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -114,10 +130,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-timestamp-with-catchup-repeater-returns-time-list ()
-  "Test that a timestamp with ++1w repeater parses correctly."
+  "Test that a timestamp with ++1w repeater parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 10:30 ++1w>")
+      (let* ((time (test-time-tomorrow-at 10 30))
+             (timestamp (format-time-string "<%Y-%m-%d %a %H:%M ++1w>" time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -125,10 +144,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-timestamp-with-time-range-returns-start-time ()
-  "Test that a timestamp with time range returns the start time."
+  "Test that a timestamp with time range returns the start time.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 14:00-15:30>")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (format-time-string "<%Y-%m-%d %a %H:%M-15:30>" time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -136,10 +158,15 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-timestamp-with-date-range-returns-start-date ()
-  "Test that a timestamp with date range returns start date time."
+  "Test that a timestamp with date range returns start date time.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 10:00>--<2025-10-25 Sat 10:00>")
+      (let* ((time1 (test-time-tomorrow-at 10 0))
+             (time2 (test-time-days-from-now 2))
+             (timestamp (concat (test-timestamp-string time1) "--"
+                                (format-time-string "<%Y-%m-%d %a %H:%M>" time2)))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -149,10 +176,13 @@
 ;;; Boundary Cases
 
 (ert-deftest test-chime-timestamp-parse-midnight-timestamp-returns-time-list ()
-  "Test that midnight (00:00) timestamp parses correctly."
+  "Test that midnight (00:00) timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 00:00>")
+      (let* ((time (test-time-tomorrow-at 0 0))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -160,10 +190,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-last-minute-of-day-returns-time-list ()
-  "Test that last minute of day (23:59) timestamp parses correctly."
+  "Test that last minute of day (23:59) timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 23:59>")
+      (let* ((time (test-time-tomorrow-at 23 59))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -171,10 +204,17 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-year-boundary-new-years-eve-returns-time-list ()
-  "Test that New Year's Eve timestamp parses correctly."
+  "Test that New Year's Eve timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-12-31 Wed 23:30>")
+      (let* ((now (test-time-now))
+             (decoded (decode-time now))
+             (year (nth 5 decoded))
+             ;; Create Dec 31 at 23:30 for current test year
+             (time (encode-time 0 30 23 31 12 year))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -182,10 +222,17 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-year-boundary-new-years-day-returns-time-list ()
-  "Test that New Year's Day timestamp parses correctly."
+  "Test that New Year's Day timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2026-01-01 Thu 00:30>")
+      (let* ((now (test-time-now))
+             (decoded (decode-time now))
+             (year (1+ (nth 5 decoded)))  ; Next year
+             ;; Create Jan 1 at 00:30 for next test year
+             (time (encode-time 0 30 0 1 1 year))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -193,10 +240,13 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-single-digit-time-returns-time-list ()
-  "Test that single-digit hours and minutes parse correctly."
+  "Test that single-digit hours and minutes parse correctly.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-24 Fri 01:05>")
+      (let* ((time (test-time-tomorrow-at 1 5))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -204,10 +254,14 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-leap-year-feb-29-returns-time-list ()
-  "Test that Feb 29 in leap year parses correctly."
+  "Test that Feb 29 in leap year parses correctly.
+
+REFACTORED: Uses dynamic timestamps (2024 leap year)"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2024-02-29 Thu 14:00>")
+      (let* (;; Use 2024 as a known leap year
+             (time (encode-time 0 0 14 29 2 2024))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
@@ -215,10 +269,17 @@
     (test-chime-timestamp-parse-teardown)))
 
 (ert-deftest test-chime-timestamp-parse-month-boundary-end-of-month-returns-time-list ()
-  "Test that end of month timestamp parses correctly."
+  "Test that end of month timestamp parses correctly.
+
+REFACTORED: Uses dynamic timestamps (Oct 31)"
   (test-chime-timestamp-parse-setup)
   (unwind-protect
-      (let* ((timestamp "<2025-10-31 Fri 14:00>")
+      (let* ((now (test-time-now))
+             (decoded (decode-time now))
+             (year (nth 5 decoded))
+             ;; Create Oct 31 at 14:00 for current test year
+             (time (encode-time 0 0 14 31 10 year))
+             (timestamp (test-timestamp-string time))
              (result (chime--timestamp-parse timestamp)))
         (should (listp result))
         (should (= (length result) 2))
