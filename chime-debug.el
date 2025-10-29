@@ -32,8 +32,14 @@
 ;; - `chime--debug-dump-events' - Show all stored upcoming events
 ;; - `chime--debug-dump-tooltip' - Show tooltip content
 ;; - `chime--debug-config' - Show complete configuration dump
+;; - `chime-debug-monitor-event-loading' - Monitor when events are first loaded
 ;;
 ;; All functions write to *Messages* buffer without cluttering echo area.
+;;
+;; The event loading monitor is particularly useful for diagnosing timing
+;; issues where the modeline takes a while to populate after Emacs startup.
+;; It will send a libnotify notification and log detailed timing information
+;; when events are first loaded.
 
 ;;; Code:
 
@@ -121,6 +127,86 @@ Shows all relevant settings, agenda files, and current state."
                          "none"))
   (chime--log-silently "=== End Chime Debug ===\n")
   (message "Chime: Configuration dumped to *Messages* buffer"))
+
+;;; Event Loading Monitor
+
+(defvar chime--debug-startup-time nil
+  "Time when Emacs finished starting, for measuring event load delay.")
+
+(defvar chime--debug-first-load-notified nil
+  "Whether we've already notified about the first event load.")
+
+(defun chime--debug-notify-first-load ()
+  "Send notification and log when events are first loaded.
+This helps diagnose timing issues with event hydration after Emacs startup."
+  (when (and chime--upcoming-events
+             (not chime--debug-first-load-notified))
+    (setq chime--debug-first-load-notified t)
+    (let* ((now (current-time))
+           (startup-delay (if chime--debug-startup-time
+                              (float-time (time-subtract now chime--debug-startup-time))
+                            nil))
+           (event-count (length chime--upcoming-events))
+           (first-event (car chime--upcoming-events))
+           (first-title (when first-event
+                          (cdr (assoc 'title (car first-event))))))
+      ;; Log to *Messages*
+      (chime--log-silently "=== Chime Debug: First Event Load ===")
+      (chime--log-silently "Time: %s" (format-time-string "%Y-%m-%d %H:%M:%S" now))
+      (when startup-delay
+        (chime--log-silently "Delay after Emacs startup: %.2f seconds" startup-delay))
+      (chime--log-silently "Events loaded: %d" event-count)
+      (chime--log-silently "Modeline string: %s"
+                           (if chime-modeline-string
+                               (format "\"%s\"" chime-modeline-string)
+                             "nil"))
+      (when first-title
+        (chime--log-silently "First event: %s" first-title))
+      (chime--log-silently "=== End Chime Debug ===\n")
+
+      ;; Send libnotify notification
+      (let ((summary (format "Chime: Events Loaded (%d)" event-count))
+            (body (if startup-delay
+                      (format "Loaded %.2fs after startup\nFirst: %s"
+                              startup-delay
+                              (or first-title "Unknown"))
+                    (format "First: %s" (or first-title "Unknown")))))
+        (alert body :title summary :severity 'moderate)))))
+
+;;;###autoload
+(defun chime-debug-monitor-event-loading ()
+  "Enable monitoring of event loading timing.
+Logs to *Messages* and sends libnotify notification when events are first
+loaded after Emacs startup. Useful for diagnosing hydration delays.
+
+To enable:
+  (setq chime-debug t)
+  (require 'chime)
+  (chime-debug-monitor-event-loading)"
+  (interactive)
+  ;; Record startup time
+  (setq chime--debug-startup-time (current-time))
+  (setq chime--debug-first-load-notified nil)
+
+  ;; Add advice to chime--update-modeline to monitor when events are populated
+  (advice-add 'chime--update-modeline :after
+              (lambda (&rest _)
+                (chime--debug-notify-first-load)))
+
+  (chime--log-silently "Chime debug: Event loading monitor enabled")
+  (chime--log-silently "  Startup time recorded: %s"
+                       (format-time-string "%Y-%m-%d %H:%M:%S" chime--debug-startup-time))
+  (message "Chime: Event loading monitor enabled"))
+
+;;;###autoload
+(defun chime-debug-stop-monitor-event-loading ()
+  "Disable monitoring of event loading timing."
+  (interactive)
+  (advice-remove 'chime--update-modeline
+                 (lambda (&rest _)
+                   (chime--debug-notify-first-load)))
+  (chime--log-silently "Chime debug: Event loading monitor disabled")
+  (message "Chime: Event loading monitor disabled"))
 
 (provide 'chime-debug)
 ;;; chime-debug.el ends here
