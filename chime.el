@@ -1337,13 +1337,15 @@ Shows events stored in `chime--upcoming-events' with their times and titles."
   "Dump current tooltip content to *Messages* buffer for debugging.
 Shows the tooltip text that would appear when hovering over the modeline."
   (interactive)
-  (let ((tooltip-text (chime--generate-tooltip)))
-    (if (not tooltip-text)
-        (message "Chime: No tooltip content available")
-      (chime--log-silently "=== Chime Debug: Tooltip Content ===")
-      (chime--log-silently "%s" tooltip-text)
-      (chime--log-silently "=== End Chime Debug ===\n")
-      (message "Dumped tooltip content to *Messages* buffer"))))
+  (if (not chime--upcoming-events)
+      (message "Chime: No upcoming events stored")
+    (let ((tooltip-text (chime--make-tooltip chime--upcoming-events)))
+      (if (not tooltip-text)
+          (message "Chime: No tooltip content available")
+        (chime--log-silently "=== Chime Debug: Tooltip Content ===")
+        (chime--log-silently "%s" tooltip-text)
+        (chime--log-silently "=== End Chime Debug ===\n")
+        (message "Dumped tooltip content to *Messages* buffer")))))
 
 (defun chime--debug-config ()
   "Dump chime configuration and status to *Messages* buffer.
@@ -1365,7 +1367,8 @@ Shows all relevant settings, agenda files, and current state."
                          "nil"))
   (chime--log-silently "\nNotification settings:")
   (chime--log-silently "  chime-alert-time: %s" chime-alert-time)
-  (chime--log-silently "  chime-notification-backends: %s" chime-notification-backends)
+  (chime--log-silently "  chime-notification-title: %s" chime-notification-title)
+  (chime--log-silently "  chime-alert-severity: %s" chime-alert-severity)
   (chime--log-silently "\nFilters:")
   (chime--log-silently "  chime-keyword-blacklist: %s" chime-keyword-blacklist)
   (chime--log-silently "  chime-keyword-whitelist: %s" chime-keyword-whitelist)
