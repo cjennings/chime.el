@@ -37,8 +37,10 @@
 (require 'async)
 (require 'org-agenda)
 
-;; Load chime from parent directory
+;; Enable debug mode and load chime
+(setq chime-debug t)
 (load (expand-file-name "../chime.el") nil t)
+(require 'chime-debug (expand-file-name "../chime-debug.el"))
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
