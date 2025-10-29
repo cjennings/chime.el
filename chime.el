@@ -1094,6 +1094,29 @@ EVENT-MSG is a string representation of the event."
    :category 'chime
    chime-extra-alert-plist))
 
+(defun chime--convert-12hour-to-24hour (timestamp hour)
+  "Convert HOUR from 12-hour to 24-hour format based on TIMESTAMP's am/pm suffix.
+TIMESTAMP is the original timestamp string (e.g., \"<2025-11-05 Wed 1:30pm>\").
+HOUR is the hour value from org-parse-time-string (1-12 for 12-hour format).
+
+Returns converted hour in 24-hour format (0-23):
+- 12pm → 12 (noon)
+- 1-11pm → 13-23 (add 12)
+- 12am → 0 (midnight)
+- 1-11am → 1-11 (no change)
+- No am/pm → HOUR unchanged (24-hour format)"
+  (let ((is-pm (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*pm" (downcase timestamp)))
+        (is-am (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*am" (downcase timestamp))))
+    (cond
+     ;; 12pm = 12:00 (noon), don't add 12
+     ((and is-pm (= hour 12)) 12)
+     ;; 1-11pm: add 12 to get 13-23
+     (is-pm (+ hour 12))
+     ;; 12am = 00:00 (midnight)
+     ((and is-am (= hour 12)) 0)
+     ;; 1-11am or 24-hour format: use as-is
+     (t hour))))
+
 (defun chime--timestamp-parse (timestamp)
   "Parse TIMESTAMP and return time in list-of-integer format.
 Returns nil if parsing fails or timestamp is malformed."
@@ -1115,19 +1138,8 @@ Returns nil if parsing fails or timestamp is malformed."
                    (day (decoded-time-day parsed))
                    (raw-hour (decoded-time-hour parsed))
                    (minute (decoded-time-minute parsed))
-                   ;; Handle 12-hour am/pm format conversion
-                   ;; org-parse-time-string doesn't convert "1:30pm" to 13:30, so we do it here
-                   (is-pm (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*pm" (downcase timestamp)))
-                   (is-am (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*am" (downcase timestamp)))
-                   (hour (cond
-                          ;; 12pm = 12:00 (noon), don't add 12
-                          ((and is-pm (= raw-hour 12)) 12)
-                          ;; 1-11pm: add 12 to get 13-23
-                          (is-pm (+ raw-hour 12))
-                          ;; 12am = 00:00 (midnight)
-                          ((and is-am (= raw-hour 12)) 0)
-                          ;; 1-11am or 24-hour format: use as-is
-                          (t raw-hour))))
+                   ;; Convert 12-hour am/pm format to 24-hour format
+                   (hour (chime--convert-12hour-to-24hour timestamp raw-hour)))
               (when (and month day hour minute
                          (>= month 1) (<= month 12)
                          (>= day 1) (<= day 31)

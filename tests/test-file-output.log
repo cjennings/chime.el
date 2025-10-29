@@ -1,0 +1,20 @@
+Running 7 tests (2025-10-29 11:08:55-0500, selector ‘t’)
+Dumped 1 events to *Messages* buffer
+Dumped tooltip content to *Messages* buffer
+Chime: Configuration dumped to *Messages* buffer
+   passed  1/7  test-chime-debug-all-functions-work-together (0.707648 sec)
+Chime: Configuration dumped to *Messages* buffer
+   passed  2/7  test-chime-debug-config-boundary-no-agenda-files (0.000903 sec)
+Chime: Configuration dumped to *Messages* buffer
+   passed  3/7  test-chime-debug-config-normal-dumps-config (0.001031 sec)
+Chime: No upcoming events stored
+   passed  4/7  test-chime-debug-dump-events-boundary-no-events (0.000743 sec)
+Dumped 1 events to *Messages* buffer
+   passed  5/7  test-chime-debug-dump-events-normal-with-events (0.000973 sec)
+Chime: No upcoming events stored
+   passed  6/7  test-chime-debug-dump-tooltip-boundary-no-events (0.000682 sec)
+Dumped tooltip content to *Messages* buffer
+   passed  7/7  test-chime-debug-dump-tooltip-normal-with-events (0.000971 sec)
+
+Ran 7 tests, 7 results as expected, 0 unexpected (2025-10-29 11:08:55-0500, 0.713656 sec)
+
