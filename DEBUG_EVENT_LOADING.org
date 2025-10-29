@@ -1,0 +1,135 @@
+#+TITLE: Event Loading Monitor - Debug Guide
+#+AUTHOR: Craig Jennings
+#+DATE: 2025-10-29
+
+* Overview
+
+The event loading monitor helps diagnose timing issues where chime's modeline
+takes a while to populate after Emacs startup. It provides detailed timing
+information and notifications to understand when events are loaded vs when
+the modeline updates.
+
+* Setup
+
+** Option 1: Enable in your config
+
+Add to your =~/.emacs.d/modules/org-agenda-config.el= after chime configuration:
+
+#+begin_src elisp
+;; Enable debug mode and monitoring
+(setq chime-debug t)
+(when chime-debug
+  (chime-debug-monitor-event-loading))
+#+end_src
+
+** Option 2: Enable for current session
+
+Run interactively after Emacs starts:
+
+#+begin_src elisp
+M-x chime-debug-monitor-event-loading
+#+end_src
+
+* What It Does
+
+1. *Records startup time* - Marks when you enable monitoring
+2. *Hooks into event loading* - Watches =chime--update-modeline=
+3. *Detects first load* - Triggers on first successful event population
+4. *Sends notification* - Libnotify popup showing event count and timing
+5. *Logs to *Messages** - Detailed timing breakdown
+
+* What You'll See
+
+** In *Messages* buffer
+
+#+begin_example
+=== Chime Debug: First Event Load ===
+Time: 2025-10-29 11:15:23
+Delay after Emacs startup: 3.47 seconds
+Events loaded: 5
+Modeline string: " ⏰ Reply to AJ in 45m"
+First event: Reply to AJ
+=== End Chime Debug ===
+#+end_example
+
+** Notification popup
+
+#+begin_example
+Title: Chime: Events Loaded (5)
+Body: Loaded 3.47s after startup
+      First: Reply to AJ
+#+end_example
+
+* Interpreting the Results
+
+| Delay       | Interpretation                                        |
+|-------------+-------------------------------------------------------|
+| < 1 second  | Normal - events loading quickly                       |
+| 1-3 seconds | Typical with org-gcal or many agenda files            |
+| > 5 seconds | Something is slow (org-gcal sync, file parsing, etc.) |
+
+** Key Questions to Answer
+
+1. *When do events load?*
+   - Check the "Delay after Emacs startup" value
+   - Compare to when you first see the modeline
+
+2. *Does the modeline appear with or after the notification?*
+   - WITH notification: Normal - modeline updates when events load
+   - AFTER notification: Modeline update is delayed separately
+
+3. *What's the bottleneck?*
+   - Slow file parsing: Many/large org files
+   - Org-gcal sync: Network delay
+   - Async processing: Check =chime--process= state
+
+* Stopping the Monitor
+
+To disable monitoring:
+
+#+begin_src elisp
+M-x chime-debug-stop-monitor-event-loading
+#+end_src
+
+* Troubleshooting Common Issues
+
+** Events never load
+
+Check =M-x chime--debug-config= to see:
+- Is =chime-mode= enabled?
+- Are =org-agenda-files= populated?
+- Is the process running?
+
+** Notification doesn't appear
+
+Ensure:
+- =alert= package is configured correctly
+- =alert-default-style= is set to ='libnotify=
+- Notification daemon (dunst, etc.) is running
+
+** Multiple notifications
+
+The monitor only notifies once per Emacs session. If you see multiple:
+- Events are being cleared and reloaded
+- Check =chime-check= calls or mode restarts
+
+* Related Debug Functions
+
+Other debug functions available when =chime-debug= is non-nil:
+
+- =M-x chime--debug-dump-events= - Show all stored upcoming events
+- =M-x chime--debug-dump-tooltip= - Show tooltip content
+- =M-x chime--debug-config= - Show complete configuration dump
+
+All functions write to =*Messages*= buffer without cluttering echo area.
+
+* Implementation Details
+
+The monitor works by:
+1. Recording =current-time= when enabled
+2. Adding =:after= advice to =chime--update-modeline=
+3. Checking if =chime--upcoming-events= becomes non-empty
+4. Calculating delay and sending notification on first load
+5. Setting flag to prevent duplicate notifications
+
+See =chime-debug.el= for implementation.
