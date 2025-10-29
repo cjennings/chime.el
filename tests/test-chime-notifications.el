@@ -41,6 +41,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -55,172 +56,203 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-notifications-single-time-single-interval-returns-pair ()
-  "Test that single time with single interval returns one notification pair."
+  "Test that single time with single interval returns one notification pair.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at 14:10 (10 minutes from now)
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at 14:10 (10 minutes from now)
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
                           (intervals . (10))))
                  (result (chime--notifications event)))
-        ;; Should return list with one pair
-        (should (listp result))
-        (should (= 1 (length result))))
+            ;; Should return list with one pair
+            (should (listp result))
+            (should (= 1 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-single-time-multiple-intervals-returns-multiple-pairs ()
-  "Test that single time with multiple intervals returns multiple notification pairs."
+  "Test that single time with multiple intervals returns multiple notification pairs.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at 14:10
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at 14:10
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
                           (intervals . (10 5))))  ; Two intervals, only 10 matches
                  (result (chime--notifications event)))
-        ;; Should return only matching interval
-        (should (listp result))
-        (should (= 1 (length result))))
+            ;; Should return only matching interval
+            (should (listp result))
+            (should (= 1 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-multiple-times-single-interval-returns-matching-pairs ()
-  "Test that multiple times with single interval returns matching notifications."
+  "Test that multiple times with single interval returns matching notifications.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Two events: one at 14:10, one at 14:05
-                 (event-time-1 (encode-time 0 10 14 24 10 2025))
-                 (event-time-2 (encode-time 0 5 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time-1)
-                                     ("<2025-10-24 Fri 14:05>" . ,event-time-2))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Two events: one at 14:10, one at 14:05
+             (event-time-1 (test-time-today-at 14 10))
+             (event-time-2 (test-time-today-at 14 5))
+             (timestamp-str-1 (test-timestamp-string event-time-1))
+             (timestamp-str-2 (test-timestamp-string event-time-2)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str-1 . ,event-time-1)
+                                     (,timestamp-str-2 . ,event-time-2)))
                           (title . "Test Event")
                           (intervals . (10))))  ; Only first time matches
                  (result (chime--notifications event)))
-        ;; Should return only matching time
-        (should (listp result))
-        (should (= 1 (length result))))
+            ;; Should return only matching time
+            (should (listp result))
+            (should (= 1 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-multiple-times-multiple-intervals-returns-all-matches ()
-  "Test that multiple times and intervals return all matching combinations."
+  "Test that multiple times and intervals return all matching combinations.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at 14:10 and 14:05
-                 (event-time-1 (encode-time 0 10 14 24 10 2025))
-                 (event-time-2 (encode-time 0 5 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time-1)
-                                     ("<2025-10-24 Fri 14:05>" . ,event-time-2))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at 14:10 and 14:05
+             (event-time-1 (test-time-today-at 14 10))
+             (event-time-2 (test-time-today-at 14 5))
+             (timestamp-str-1 (test-timestamp-string event-time-1))
+             (timestamp-str-2 (test-timestamp-string event-time-2)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str-1 . ,event-time-1)
+                                     (,timestamp-str-2 . ,event-time-2)))
                           (title . "Test Event")
                           (intervals . (10 5))))  ; Both match (10 with first, 5 with second)
                  (result (chime--notifications event)))
-        ;; Should return both matching pairs
-        (should (listp result))
-        (should (= 2 (length result))))
+            ;; Should return both matching pairs
+            (should (listp result))
+            (should (= 2 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-zero-interval-returns-current-time-match ()
-  "Test that zero interval (notify now) works correctly."
+  "Test that zero interval (notify now) works correctly.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Event at exactly current time
-                 (event-time (encode-time 0 0 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:00>" . ,event-time))))
+      (let* ((now (test-time-today-at 14 0))
+             ;; Event at exactly current time
+             (event-time (test-time-today-at 14 0))
+             (timestamp-str (test-timestamp-string event-time)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
                           (intervals . (0))))
                  (result (chime--notifications event)))
-        ;; Should return one matching pair
-        (should (listp result))
-        (should (= 1 (length result))))
+            ;; Should return one matching pair
+            (should (listp result))
+            (should (= 1 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-filters-day-wide-events ()
-  "Test that day-wide events (without time) are filtered out."
+  "Test that day-wide events (without time) are filtered out.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 ;; Mix of day-wide and timed events
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri>" . ,event-time)  ; Day-wide
-                                     ("<2025-10-24 Fri 14:10>" . ,event-time))))  ; Timed
+      (let* ((now (test-time-today-at 14 0))
+             ;; Mix of day-wide and timed events
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str-day (test-timestamp-string event-time t))  ; Day-wide
+             (timestamp-str-timed (test-timestamp-string event-time)))  ; Timed
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str-day . ,event-time)  ; Day-wide
+                                     (,timestamp-str-timed . ,event-time)))  ; Timed
                           (title . "Test Event")
                           (intervals . (10))))
                  (result (chime--notifications event)))
-        ;; Should return only timed event
-        (should (listp result))
-        (should (= 1 (length result))))
+            ;; Should return only timed event
+            (should (listp result))
+            (should (= 1 (length result))))))
     (test-chime-notifications-teardown)))
 
 ;;; Boundary Cases
 
 (ert-deftest test-chime-notifications-empty-times-returns-empty-list ()
-  "Test that event with no times returns empty list."
+  "Test that event with no times returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event `((times . (()))
+      (let ((now (test-time-today-at 14 0)))
+        (with-test-time now
+          (let* ((event `((times . (()))
                           (title . "Test Event")
                           (intervals . (10))))
                  (result (chime--notifications event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-empty-intervals-returns-empty-list ()
-  "Test that event with no intervals returns empty list."
+  "Test that event with no intervals returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+      (let* ((now (test-time-today-at 14 0))
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
                           (intervals . ())))
                  (result (chime--notifications event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-notifications-teardown)))
 
 ;;; Error Cases
 
 (ert-deftest test-chime-notifications-nil-times-returns-empty-list ()
-  "Test that event with nil times returns empty list."
+  "Test that event with nil times returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event `((times . (nil))
+      (let ((now (test-time-today-at 14 0)))
+        (with-test-time now
+          (let* ((event `((times . (nil))
                           (title . "Test Event")
                           (intervals . (10))))
                  (result (chime--notifications event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-notifications-teardown)))
 
 (ert-deftest test-chime-notifications-nil-intervals-returns-empty-list ()
-  "Test that event with nil intervals returns empty list."
+  "Test that event with nil intervals returns empty list.
+
+REFACTORED: Uses dynamic timestamps and with-test-time"
   (test-chime-notifications-setup)
   (unwind-protect
-      (cl-letf* ((mock-time (encode-time 0 0 14 24 10 2025))
-                 ((symbol-function 'current-time) (lambda () mock-time))
-                 (event-time (encode-time 0 10 14 24 10 2025))
-                 (event `((times . ((("<2025-10-24 Fri 14:10>" . ,event-time))))
+      (let* ((now (test-time-today-at 14 0))
+             (event-time (test-time-today-at 14 10))
+             (timestamp-str (test-timestamp-string event-time)))
+        (with-test-time now
+          (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
                           (intervals . nil)))
                  (result (chime--notifications event)))
-        (should (listp result))
-        (should (= 0 (length result))))
+            (should (listp result))
+            (should (= 0 (length result))))))
     (test-chime-notifications-teardown)))
 
 (provide 'test-chime-notifications)
