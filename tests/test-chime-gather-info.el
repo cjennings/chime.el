@@ -43,6 +43,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -59,11 +60,15 @@
 ;;; Normal Cases
 
 (ert-deftest test-chime-gather-info-extracts-all-components ()
-  "Test that gather-info extracts times, title, intervals, and marker."
+  "Test that gather-info extracts times, title, intervals, and marker.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Team Meeting\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Team Meeting\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -84,11 +89,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-with-balanced-parens-in-title ()
-  "Test that balanced parentheses in title are preserved."
+  "Test that balanced parentheses in title are preserved.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting (Team Sync)\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting (Team Sync)\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -102,11 +111,15 @@
 ;;; Sanitization Cases
 
 (ert-deftest test-chime-gather-info-sanitizes-unmatched-opening-paren ()
-  "Test that unmatched opening parenthesis in title is closed."
+  "Test that unmatched opening parenthesis in title is closed.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting (Team Sync\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting (Team Sync\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -119,11 +132,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-sanitizes-unmatched-opening-bracket ()
-  "Test that unmatched opening bracket in title is closed."
+  "Test that unmatched opening bracket in title is closed.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Review [PR #123\nSCHEDULED: <2025-10-28 Tue 15:00>\n"))
+      (let* ((time (test-time-tomorrow-at 15 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Review [PR #123\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -136,11 +153,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-sanitizes-unmatched-opening-brace ()
-  "Test that unmatched opening brace in title is closed."
+  "Test that unmatched opening brace in title is closed.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Code Review {urgent\nSCHEDULED: <2025-10-28 Tue 16:00>\n"))
+      (let* ((time (test-time-tomorrow-at 16 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Code Review {urgent\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -153,11 +174,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-sanitizes-multiple-unmatched-delimiters ()
-  "Test that multiple unmatched delimiters are all closed."
+  "Test that multiple unmatched delimiters are all closed.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting [Team (Sync {Status\nSCHEDULED: <2025-10-28 Tue 17:00>\n"))
+      (let* ((time (test-time-tomorrow-at 17 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting [Team (Sync {Status\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -170,11 +195,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-sanitizes-unmatched-closing-paren ()
-  "Test that unmatched closing parenthesis is removed."
+  "Test that unmatched closing parenthesis is removed.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting Title)\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting Title)\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -189,11 +218,15 @@
 ;;; Real-World Bug Cases
 
 (ert-deftest test-chime-gather-info-bug-case-extended-leadership ()
-  "Test the actual bug case from vineti.meetings.org."
+  "Test the actual bug case from vineti.meetings.org.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO 1:01pm CTO/COO XLT (Extended Leadership\nSCHEDULED: <2025-10-28 Tue 13:01>\n"))
+      (let* ((time (test-time-tomorrow-at 13 1))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO 1:01pm CTO/COO XLT (Extended Leadership\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -206,11 +239,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-bug-case-spice-cake ()
-  "Test the actual bug case from journal/2023-11-22.org."
+  "Test the actual bug case from journal/2023-11-22.org.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Spice Cake (\nSCHEDULED: <2025-10-28 Tue 18:00>\n"))
+      (let* ((time (test-time-tomorrow-at 18 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Spice Cake (\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -225,11 +262,15 @@
 ;;; Serialization Safety
 
 (ert-deftest test-chime-gather-info-output-serializable-with-unmatched-parens ()
-  "Test that gather-info output with unmatched parens can be serialized."
+  "Test that gather-info output with unmatched parens can be serialized.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting (Team\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting (Team\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -248,17 +289,21 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-multiple-events-all-serializable ()
-  "Test that multiple events with various delimiter issues are all serializable."
+  "Test that multiple events with various delimiter issues are all serializable.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((problematic-titles '("Meeting (Team"
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (problematic-titles '("Meeting (Team"
                                   "Review [PR"
                                   "Code {Status"
                                   "Event (("
                                   "Task ))"))
              (test-content (mapconcat
                            (lambda (title)
-                             (format "* TODO %s\nSCHEDULED: <2025-10-28 Tue 14:00>\n" title))
+                             (format "* TODO %s\nSCHEDULED: %s\n" title timestamp))
                            problematic-titles
                            "\n"))
              (test-file (chime-create-temp-test-file-with-content test-content))
@@ -286,11 +331,15 @@
 ;;; Edge Cases
 
 (ert-deftest test-chime-gather-info-handles-empty-title ()
-  "Test that gather-info handles entries with no title."
+  "Test that gather-info handles entries with no title.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -303,12 +352,16 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-handles-very-long-title-with-delimiters ()
-  "Test that gather-info handles very long titles with unmatched delimiters."
+  "Test that gather-info handles very long titles with unmatched delimiters.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((long-title "This is a very long meeting title that contains many words and might wrap in the notification display (Extended Info")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (long-title "This is a very long meeting title that contains many words and might wrap in the notification display (Extended Info")
              (test-file (chime-create-temp-test-file-with-content
-                        (format "* TODO %s\nSCHEDULED: <2025-10-28 Tue 14:00>\n" long-title)))
+                        (format "* TODO %s\nSCHEDULED: %s\n" long-title timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -324,11 +377,15 @@
     (test-chime-gather-info-teardown)))
 
 (ert-deftest test-chime-gather-info-with-custom-notify-property ()
-  "Test that gather-info includes custom notification intervals."
+  "Test that gather-info includes custom notification intervals.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                        "* TODO Meeting (Team\n:PROPERTIES:\n:CHIME_NOTIFY_BEFORE: 5 15\n:END:\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                        (format "* TODO Meeting (Team\n:PROPERTIES:\n:CHIME_NOTIFY_BEFORE: 5 15\n:END:\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -353,11 +410,15 @@ like 'todo.org<jr-estate>' could not be serialized because angle brackets in
 the buffer name created invalid Lisp syntax: #<marker ... in todo.org<dir>>
 
 The fix returns marker-file and marker-pos instead of the marker object,
-which can be properly serialized regardless of buffer name."
+which can be properly serialized regardless of buffer name.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let* ((test-file (chime-create-temp-test-file-with-content
-                          "* TODO Test Task\nSCHEDULED: <2025-10-28 Tue 14:00>\n"))
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-file (chime-create-temp-test-file-with-content
+                          (format "* TODO Test Task\nSCHEDULED: %s\n" timestamp)))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
           (org-mode)
@@ -401,10 +462,14 @@ Tests characters that could theoretically cause Lisp read syntax errors:
 - Backticks/commas: quasiquote syntax
 - Hash symbols: reader macros
 
-These should all be properly escaped by format %S."
+These should all be properly escaped by format %S.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-gather-info-setup)
   (unwind-protect
-      (let ((special-titles '(("Quote in \"middle\"" . "Quote in \"middle\"")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+            (special-titles '(("Quote in \"middle\"" . "Quote in \"middle\"")
                              ("Backslash\\path\\here" . "Backslash\\path\\here")
                              ("Semicolon; not a comment" . "Semicolon; not a comment")
                              ("Backtick `and` comma, here" . "Backtick `and` comma, here")
@@ -413,7 +478,7 @@ These should all be properly escaped by format %S."
         (dolist (title-pair special-titles)
           (let* ((title (car title-pair))
                  (expected (cdr title-pair))
-                 (test-content (format "* TODO %s\nSCHEDULED: <2025-10-28 Tue 14:00>\n" title))
+                 (test-content (format "* TODO %s\nSCHEDULED: %s\n" title timestamp))
                  (test-file (chime-create-temp-test-file-with-content test-content))
                  (test-buffer (find-file-noselect test-file)))
             (with-current-buffer test-buffer
