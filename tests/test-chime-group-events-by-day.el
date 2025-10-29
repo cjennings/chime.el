@@ -46,6 +46,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -64,15 +65,18 @@
 MINUTES-UNTIL is minutes until event, TITLE is event title."
   (let* ((now (current-time))
          (event-time (time-add now (seconds-to-time (* minutes-until 60))))
+         (timestamp-str (test-timestamp-string event-time))
          (event `((title . ,title)
                   (times . ())))
-         (time-info (cons "<2025-10-24 Fri 14:00>" event-time)))
+         (time-info (cons timestamp-str event-time)))
     (list event time-info minutes-until)))
 
 ;;; Normal Cases
 
 (ert-deftest test-chime-group-events-by-day-normal-single-day ()
-  "Test grouping events all on same day."
+  "Test grouping events all on same day.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event1 (test-chime-make-event-item 10 "Event 1"))
@@ -89,7 +93,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-normal-multiple-days ()
-  "Test grouping events across multiple days."
+  "Test grouping events across multiple days.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event1 (test-chime-make-event-item 10 "Today Event"))
@@ -106,7 +112,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-normal-maintains-order ()
-  "Test that events maintain order within groups."
+  "Test that events maintain order within groups.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event1 (test-chime-make-event-item 10 "First"))
@@ -125,7 +133,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
 ;;; Boundary Cases
 
 (ert-deftest test-chime-group-events-by-day-boundary-empty-list ()
-  "Test grouping empty events list."
+  "Test grouping empty events list.
+
+REFACTORED: No timestamps used"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let ((result (chime--group-events-by-day '())))
@@ -134,7 +144,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-single-event ()
-  "Test grouping single event."
+  "Test grouping single event.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 10 "Only Event"))
@@ -147,7 +159,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-exactly-1440-minutes ()
-  "Test event at exactly 1440 minutes (1 day boundary)."
+  "Test event at exactly 1440 minutes (1 day boundary).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 1440 "Boundary Event"))
@@ -159,7 +173,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-just-under-1440 ()
-  "Test event at 1439 minutes (just under day boundary)."
+  "Test event at 1439 minutes (just under day boundary).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 1439 "Almost Tomorrow"))
@@ -171,7 +187,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-exactly-2880-minutes ()
-  "Test event at exactly 2880 minutes (2 day boundary)."
+  "Test event at exactly 2880 minutes (2 day boundary).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 2880 "Two Days Away"))
@@ -183,7 +201,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-zero-minutes ()
-  "Test event at 0 minutes (happening now)."
+  "Test event at 0 minutes (happening now).
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 0 "Right Now"))
@@ -197,7 +217,9 @@ MINUTES-UNTIL is minutes until event, TITLE is event title."
 ;;; Error Cases
 
 (ert-deftest test-chime-group-events-by-day-error-nil-input ()
-  "Test that nil input doesn't crash."
+  "Test that nil input doesn't crash.
+
+REFACTORED: No timestamps used"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (progn
