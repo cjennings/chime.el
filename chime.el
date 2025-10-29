@@ -1111,10 +1111,23 @@ Returns nil if parsing fails or timestamp is malformed."
                      (decoded-time-hour parsed)
                      (decoded-time-minute parsed))
             ;; Validate date components are in reasonable ranges
-            (let ((month (decoded-time-month parsed))
-                  (day (decoded-time-day parsed))
-                  (hour (decoded-time-hour parsed))
-                  (minute (decoded-time-minute parsed)))
+            (let* ((month (decoded-time-month parsed))
+                   (day (decoded-time-day parsed))
+                   (raw-hour (decoded-time-hour parsed))
+                   (minute (decoded-time-minute parsed))
+                   ;; Handle 12-hour am/pm format conversion
+                   ;; org-parse-time-string doesn't convert "1:30pm" to 13:30, so we do it here
+                   (is-pm (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*pm" (downcase timestamp)))
+                   (is-am (string-match-p "[0-9]:[0-9]\\{2\\}[[:space:]]*am" (downcase timestamp)))
+                   (hour (cond
+                          ;; 12pm = 12:00 (noon), don't add 12
+                          ((and is-pm (= raw-hour 12)) 12)
+                          ;; 1-11pm: add 12 to get 13-23
+                          (is-pm (+ raw-hour 12))
+                          ;; 12am = 00:00 (midnight)
+                          ((and is-am (= raw-hour 12)) 0)
+                          ;; 1-11am or 24-hour format: use as-is
+                          (t raw-hour))))
               (when (and month day hour minute
                          (>= month 1) (<= month 12)
                          (>= day 1) (<= day 31)
