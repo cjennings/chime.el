@@ -32,7 +32,7 @@ GREEN = \033[0;32m
 YELLOW = \033[1;33m
 NC = \033[0m # No Color
 
-.PHONY: all test test-file test-one test-unit test-integration validate clean help check-deps
+.PHONY: all test test-file test-one test-unit test-integration validate lint clean help check-deps
 
 # Default target
 all: test
@@ -191,6 +191,23 @@ validate:
 		exit 1; \
 	fi
 
+# Comprehensive linting with elisp-lint
+lint:
+	@echo "$(YELLOW)Running elisp-lint...$(NC)"
+	@$(EMACS) --batch --eval "(progn \
+		(require 'package) \
+		(package-initialize) \
+		(require 'elisp-lint))" \
+		-f elisp-lint-files-batch \
+		--no-checkdoc \
+		../chime.el test-*.el testutil-*.el 2>&1; \
+	if [ $$? -eq 0 ]; then \
+		echo "$(GREEN)✓ Linting completed successfully$(NC)"; \
+	else \
+		echo "$(RED)✗ Linting found issues (see above)$(NC)"; \
+		exit 1; \
+	fi
+
 # Clean byte-compiled files
 clean:
 	@echo "$(YELLOW)Cleaning byte-compiled files...$(NC)"
@@ -208,7 +225,8 @@ help:
 	@echo "  make test-one TEST=pilot       - Run one specific test (fuzzy match)"
 	@echo "  make test-unit                 - Run unit tests only"
 	@echo "  make test-integration          - Run integration tests only"
-	@echo "  make validate                  - Validate Emacs Lisp syntax (parens + byte-compile)"
+	@echo "  make validate                  - Validate Emacs Lisp syntax (parens balance)"
+	@echo "  make lint                      - Comprehensive linting with elisp-lint"
 	@echo "  make count                     - Count tests per file"
 	@echo "  make list                      - List all test names"
 	@echo "  make clean                     - Remove byte-compiled files and logs"
