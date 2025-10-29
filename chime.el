@@ -1297,6 +1297,54 @@ Does nothing if a check is already in progress."
                (setq chime--last-check-time (current-time))
                (funcall callback events)))))))
 
+(defun chime--log-silently (format-string &rest args)
+  "Append formatted message to *Messages* buffer without echoing.
+FORMAT-STRING and ARGS are passed to `format'."
+  (let ((inhibit-read-only t))
+    (with-current-buffer (get-buffer-create "*Messages*")
+      (goto-char (point-max))
+      (unless (bolp) (insert "\n"))
+      (insert (apply #'format format-string args))
+      (unless (bolp) (insert "\n")))))
+
+(defun chime--debug-dump-events ()
+  "Dump all upcoming events to *Messages* buffer for debugging.
+Shows events stored in `chime--upcoming-events' with their times and titles."
+  (interactive)
+  (if (not chime--upcoming-events)
+      (message "No upcoming events stored")
+    (chime--log-silently "=== Chime Debug: Upcoming Events (%d total) ==="
+                         (length chime--upcoming-events))
+    (let ((grouped (chime--group-events-by-day chime--upcoming-events)))
+      (dolist (day-group grouped)
+        (let ((day-label (car day-group))
+              (events (cdr day-group)))
+          (chime--log-silently "\n%s:" day-label)
+          (dolist (event-item events)
+            (let* ((event (car event-item))
+                   (time-info (nth 1 event-item))
+                   (minutes (nth 2 event-item))
+                   (title (cdr (assoc 'title event)))
+                   (timestamp-str (car time-info)))
+              (chime--log-silently "  [%s] %s (%s)"
+                                   timestamp-str
+                                   title
+                                   (chime--time-left (* minutes 60))))))))
+    (chime--log-silently "=== End Chime Debug ===\n")
+    (message "Dumped %d events to *Messages* buffer" (length chime--upcoming-events))))
+
+(defun chime--debug-dump-tooltip ()
+  "Dump current tooltip content to *Messages* buffer for debugging.
+Shows the tooltip text that would appear when hovering over the modeline."
+  (interactive)
+  (let ((tooltip-text (chime--generate-tooltip)))
+    (if (not tooltip-text)
+        (message "No tooltip content available")
+      (chime--log-silently "=== Chime Debug: Tooltip Content ===")
+      (chime--log-silently "%s" tooltip-text)
+      (chime--log-silently "=== End Chime Debug ===\n")
+      (message "Dumped tooltip content to *Messages* buffer"))))
+
 ;;;###autoload
 (defun chime-check ()
   "Parse agenda view and notify about upcoming events.
