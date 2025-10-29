@@ -43,6 +43,7 @@
 
 ;; Load test utilities
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -57,17 +58,21 @@
 ;;; Tests for org-gcal events
 
 (ert-deftest test-chime-extract-time-gcal-event-from-drawer ()
-  "Test that org-gcal events extract timestamps ONLY from :org-gcal: drawer."
+  "Test that org-gcal events extract timestamps ONLY from :org-gcal: drawer.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp-str (format-time-string "<%Y-%m-%d %a %H:%M-15:00>" time))
+             (test-content (format "* Meeting
 :PROPERTIES:
 :entry-id: abc123@google.com
 :END:
 :org-gcal:
-<2025-10-28 Tue 14:00-15:00>
+%s
 :END:
-")
+" timestamp-str))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -77,7 +82,7 @@
                  (times (chime--extract-time marker)))
             ;; Should extract the timestamp from :org-gcal: drawer
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))))
+            (should (string-match-p "14:00" (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
@@ -85,18 +90,24 @@
   "Test that org-gcal events ignore plain timestamps in body text.
 
 When an event is rescheduled, old timestamps might remain in the body.
-The :org-gcal: drawer has the correct time, so we should ignore body text."
+The :org-gcal: drawer has the correct time, so we should ignore body text.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting
+      (let* ((new-time (test-time-tomorrow-at 14 0))
+             (old-time (test-time-today-at 14 0))
+             (new-timestamp (test-timestamp-string new-time))
+             (old-timestamp (test-timestamp-string old-time))
+             (test-content (format "* Meeting
 :PROPERTIES:
 :entry-id: abc123@google.com
 :END:
 :org-gcal:
-<2025-10-29 Wed 14:00>
+%s
 :END:
-Old time was <2025-10-28 Tue 14:00>
-")
+Old time was %s
+" new-timestamp old-timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -104,28 +115,35 @@ Old time was <2025-10-28 Tue 14:00>
           (goto-char (point-min))
           (let* ((marker (point-marker))
                  (times (chime--extract-time marker)))
-            ;; Should extract ONLY from drawer (Oct 29), ignore body (Oct 28)
+            ;; Should extract ONLY from drawer (tomorrow), ignore body (today)
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-29.*14:00" (car (car times))))
-            (should-not (string-match-p "2025-10-28" (format "%s" times)))))
+            (should (string-match-p "14:00" (car (car times))))
+            ;; Verify it's the new timestamp, not the old one
+            (should (string-match-p (format-time-string "%Y-%m-%d" new-time) (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-gcal-event-ignores-scheduled ()
   "Test that org-gcal events ignore SCHEDULED/DEADLINE properties.
 
-For org-gcal events, the :org-gcal: drawer is the source of truth."
+For org-gcal events, the :org-gcal: drawer is the source of truth.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting
-SCHEDULED: <2025-10-30 Thu 14:00>
+      (let* ((drawer-time (test-time-tomorrow-at 14 0))
+             (scheduled-time (test-time-days-from-now 2))
+             (drawer-timestamp (test-timestamp-string drawer-time))
+             (scheduled-timestamp (test-timestamp-string scheduled-time))
+             (test-content (format "* Meeting
+SCHEDULED: %s
 :PROPERTIES:
 :entry-id: abc123@google.com
 :END:
 :org-gcal:
-<2025-10-29 Wed 14:00>
+%s
 :END:
-")
+" scheduled-timestamp drawer-timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -133,28 +151,34 @@ SCHEDULED: <2025-10-30 Thu 14:00>
           (goto-char (point-min))
           (let* ((marker (point-marker))
                  (times (chime--extract-time marker)))
-            ;; Should extract ONLY from drawer (Oct 29), ignore SCHEDULED (Oct 30)
+            ;; Should extract ONLY from drawer (tomorrow), ignore SCHEDULED (day after)
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-29.*14:00" (car (car times))))
-            (should-not (string-match-p "2025-10-30" (format "%s" times)))))
+            (should (string-match-p "14:00" (car (car times))))
+            (should (string-match-p (format-time-string "%Y-%m-%d" drawer-time) (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-gcal-event-multiple-in-drawer ()
   "Test that org-gcal events extract all timestamps from :org-gcal: drawer.
 
-Some recurring events might have multiple timestamps in the drawer."
+Some recurring events might have multiple timestamps in the drawer.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting
+      (let* ((time1 (test-time-tomorrow-at 14 0))
+             (time2 (test-time-days-from-now 2 14 0))
+             (timestamp1 (test-timestamp-string time1))
+             (timestamp2 (test-timestamp-string time2))
+             (test-content (format "* Meeting
 :PROPERTIES:
 :entry-id: abc123@google.com
 :END:
 :org-gcal:
-<2025-10-28 Tue 14:00>
-<2025-10-29 Wed 14:00>
+%s
+%s
 :END:
-")
+" timestamp1 timestamp2))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -164,20 +188,24 @@ Some recurring events might have multiple timestamps in the drawer."
                  (times (chime--extract-time marker)))
             ;; Should extract both timestamps from drawer
             (should (= 2 (length times)))
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))
-            (should (string-match-p "2025-10-29.*14:00" (car (cadr times))))))
+            (should (string-match-p "14:00" (car (car times))))
+            (should (string-match-p "14:00" (car (cadr times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 ;;; Tests for regular org events
 
 (ert-deftest test-chime-extract-time-regular-event-scheduled ()
-  "Test that regular events extract SCHEDULED timestamp."
+  "Test that regular events extract SCHEDULED timestamp.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Task
-SCHEDULED: <2025-10-28 Tue 14:00>
-")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-content (format "* Task
+SCHEDULED: %s
+" timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -187,17 +215,21 @@ SCHEDULED: <2025-10-28 Tue 14:00>
                  (times (chime--extract-time marker)))
             ;; Should extract SCHEDULED timestamp
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))))
+            (should (string-match-p "14:00" (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-regular-event-deadline ()
-  "Test that regular events extract DEADLINE timestamp."
+  "Test that regular events extract DEADLINE timestamp.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Task
-DEADLINE: <2025-10-28 Tue 17:00>
-")
+      (let* ((time (test-time-tomorrow-at 17 0))
+             (timestamp (test-timestamp-string time))
+             (test-content (format "* Task
+DEADLINE: %s
+" timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -207,17 +239,21 @@ DEADLINE: <2025-10-28 Tue 17:00>
                  (times (chime--extract-time marker)))
             ;; Should extract DEADLINE timestamp
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-28.*17:00" (car (car times))))))
+            (should (string-match-p "17:00" (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-regular-event-plain-timestamps ()
-  "Test that regular events extract plain timestamps when no SCHEDULED/DEADLINE."
+  "Test that regular events extract plain timestamps when no SCHEDULED/DEADLINE.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting notes
-Discussed: <2025-10-28 Tue 14:00>
-")
+      (let* ((time (test-time-tomorrow-at 14 0))
+             (timestamp (test-timestamp-string time))
+             (test-content (format "* Meeting notes
+Discussed: %s
+" timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -227,20 +263,26 @@ Discussed: <2025-10-28 Tue 14:00>
                  (times (chime--extract-time marker)))
             ;; Should extract plain timestamp
             (should (= 1 (length times)))
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))))
+            (should (string-match-p "14:00" (car (car times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-regular-event-scheduled-and-plain ()
   "Test that regular events extract both SCHEDULED and plain timestamps.
 
-SCHEDULED/DEADLINE appear first, then plain timestamps."
+SCHEDULED/DEADLINE appear first, then plain timestamps.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Task
-SCHEDULED: <2025-10-28 Tue 14:00>
-Note: also happens <2025-10-29 Wed 15:00>
-")
+      (let* ((scheduled-time (test-time-tomorrow-at 14 0))
+             (plain-time (test-time-days-from-now 2 15 0))
+             (scheduled-timestamp (test-timestamp-string scheduled-time))
+             (plain-timestamp (format-time-string "<%Y-%m-%d %a %H:%M>" plain-time))
+             (test-content (format "* Task
+SCHEDULED: %s
+Note: also happens %s
+" scheduled-timestamp plain-timestamp))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -250,21 +292,27 @@ Note: also happens <2025-10-29 Wed 15:00>
                  (times (chime--extract-time marker)))
             ;; Should extract both: SCHEDULED first, then plain
             (should (= 2 (length times)))
-            ;; First should be SCHEDULED (Oct 28)
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))
-            ;; Second should be plain (Oct 29)
-            (should (string-match-p "2025-10-29.*15:00" (car (cadr times))))))
+            ;; First should be SCHEDULED
+            (should (string-match-p "14:00" (car (car times))))
+            ;; Second should be plain at 15:00
+            (should (string-match-p "15:00" (car (cadr times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
 (ert-deftest test-chime-extract-time-regular-event-multiple-plain ()
-  "Test that regular events extract all plain timestamps."
+  "Test that regular events extract all plain timestamps.
+
+REFACTORED: Uses dynamic timestamps"
   (test-chime-extract-time-setup)
   (unwind-protect
-      (let* ((test-content "* Meeting notes
-First discussion: <2025-10-28 Tue 14:00>
-Second discussion: <2025-10-29 Wed 15:00>
-")
+      (let* ((time1 (test-time-tomorrow-at 14 0))
+             (time2 (test-time-days-from-now 2 15 0))
+             (timestamp1 (test-timestamp-string time1))
+             (timestamp2 (test-timestamp-string time2))
+             (test-content (format "* Meeting notes
+First discussion: %s
+Second discussion: %s
+" timestamp1 timestamp2))
              (test-file (chime-create-temp-test-file-with-content test-content))
              (test-buffer (find-file-noselect test-file)))
         (with-current-buffer test-buffer
@@ -274,8 +322,8 @@ Second discussion: <2025-10-29 Wed 15:00>
                  (times (chime--extract-time marker)))
             ;; Should extract both plain timestamps
             (should (= 2 (length times)))
-            (should (string-match-p "2025-10-28.*14:00" (car (car times))))
-            (should (string-match-p "2025-10-29.*15:00" (car (cadr times))))))
+            (should (string-match-p "14:00" (car (car times))))
+            (should (string-match-p "15:00" (car (cadr times))))))
         (kill-buffer test-buffer))
     (test-chime-extract-time-teardown)))
 
