@@ -424,7 +424,7 @@ Returns nil if TIMESTAMP or INTERVAL is invalid."
   "Get notifications for given EVENT.
 Returns a list of time information interval pairs."
   (->> (list
-        (chime--filter-day-wide-events (cadr (assoc 'times event)))
+        (chime--filter-day-wide-events (cdr (assoc 'times event)))
         (cdr (assoc 'intervals event)))
          (apply '-table-flat (lambda (ts int) (list ts int)))
          ;; When no values are provided for table flat, we get the second values
@@ -562,7 +562,10 @@ Reconstructs marker from serialized file path and position."
     (when (file-exists-p file)
       (find-file file)
       (goto-char pos)
-      (org-show-entry))))
+      ;; Use org-fold-show-entry (Org 9.6+) if available, fallback to org-show-entry
+      (if (fboundp 'org-fold-show-entry)
+          (org-fold-show-entry)
+        (org-show-entry)))))
 
 (defun chime--format-event-for-tooltip (event-time-str minutes-until title)
   "Format a single event line for tooltip display.
@@ -607,7 +610,7 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
            (events-to-show (seq-take upcoming-events max-events))
            (remaining (- (length upcoming-events) (length events-to-show)))
            (grouped (chime--group-events-by-day events-to-show))
-           (lines '("Upcoming Events:\n")))
+           (lines (list "Upcoming Events:\n")))
       ;; Build tooltip text
       (dolist (day-group grouped)
         (let ((date-str (car day-group))
@@ -661,29 +664,40 @@ Also generates tooltip showing all upcoming events grouped by day."
           (soonest-event-text nil)
           (soonest-minutes nil)
           (now (current-time)))
-      ;; Collect ALL upcoming events within lookahead window
+      ;; Collect upcoming events within lookahead window
+      ;; For events with multiple timestamps, only include the soonest one
+      ;; to avoid duplicate entries (e.g., when events are rescheduled)
       (dolist (event events)
-        (let* ((all-times (cadr (assoc 'times event)))
-               (times (chime--filter-day-wide-events all-times)))
+        (let* ((all-times (cdr (assoc 'times event)))
+               (times (chime--filter-day-wide-events all-times))
+               (soonest-time-for-event nil)
+               (soonest-time-info nil)
+               (soonest-minutes-for-event nil))
+          ;; Find the soonest upcoming timestamp for THIS event
           (dolist (time-info times)
             (when-let* ((time-str (car time-info))
                         (event-time (cdr time-info))
-                        ;; Calculate minutes until event
                         (seconds-until (- (float-time event-time) (float-time now)))
                         (minutes-until (/ seconds-until 60)))
               ;; Only consider future events within lookahead window
               (when (and (> minutes-until 0)
                          (<= minutes-until chime-modeline-lookahead))
-                ;; Store in upcoming events list
-                (push (list event time-info minutes-until) upcoming)
-                ;; Track soonest for modeline display
-                (when (or (not soonest-minutes)
-                          (< minutes-until soonest-minutes))
-                  (setq soonest-minutes minutes-until)
-                  (setq soonest-event-obj event)
-                  (setq soonest-event-text
-                        (chime--notification-text
-                         `(,time-str . ,minutes-until) event))))))))
+                ;; Track soonest time for this specific event
+                (when (or (not soonest-minutes-for-event)
+                          (< minutes-until soonest-minutes-for-event))
+                  (setq soonest-minutes-for-event minutes-until)
+                  (setq soonest-time-info time-info)))))
+          ;; Only add this event once with its soonest timestamp
+          (when soonest-time-info
+            (push (list event soonest-time-info soonest-minutes-for-event) upcoming)
+            ;; Track globally soonest for modeline display
+            (when (or (not soonest-minutes)
+                      (< soonest-minutes-for-event soonest-minutes))
+              (setq soonest-minutes soonest-minutes-for-event)
+              (setq soonest-event-obj event)
+              (setq soonest-event-text
+                    (chime--notification-text
+                     `(,(car soonest-time-info) . ,soonest-minutes-for-event) event))))))
       ;; Sort upcoming events by time (soonest first)
       (setq upcoming (sort upcoming
                           (lambda (a b) (< (nth 2 a) (nth 2 b)))))
@@ -874,43 +888,74 @@ Returns nil if parsing fails or timestamp is malformed."
      nil)))
 
 (defun chime--extract-time (marker)
-  "Extract timestamps from MARKER.
-Extracts SCHEDULED and DEADLINE from properties, plus any plain
-timestamps found in the entry body.
-Timestamps are extracted as cons cells.  car holds org-formatted
-string, cdr holds time in list-of-integer format."
-  (let ((property-timestamps
-         ;; Extract SCHEDULED and DEADLINE from properties
-         (-non-nil
-          (--map
-           (let ((org-timestamp (org-entry-get marker it)))
-             (and org-timestamp
-                  (cons org-timestamp
-                        (chime--timestamp-parse org-timestamp))))
-           '("DEADLINE" "SCHEDULED"))))
-        (plain-timestamps
-         ;; Extract plain timestamps from entry body
-         ;; Skip planning lines (SCHEDULED, DEADLINE, CLOSED) to avoid duplicates
-         (org-with-point-at marker
-           (let ((timestamps nil))
-             (save-excursion
-               ;; Skip heading and planning lines, but NOT other drawers (nil arg)
-               ;; This allows extraction from :org-gcal: and similar drawers
-               (org-end-of-meta-data nil)
-               (let ((start (point))
-                     (end (save-excursion (org-end-of-subtree t) (point))))
-                 ;; Only search if there's content after metadata
-                 (when (< start end)
-                   (goto-char start)
-                   ;; Search for timestamps until end of entry
-                   (while (re-search-forward org-ts-regexp end t)
-                     (let ((timestamp-str (match-string 0)))
-                       (push (cons timestamp-str
-                                   (chime--timestamp-parse timestamp-str))
-                             timestamps))))))
-             (nreverse timestamps)))))
-    ;; Combine property and plain timestamps, removing duplicates and nils
-    (-non-nil (append property-timestamps plain-timestamps))))
+  "Extract timestamps from MARKER using source-aware extraction.
+
+For org-gcal events (those with :entry-id: property):
+  - Extract ONLY from :org-gcal: drawer (ignores SCHEDULED/DEADLINE and body text)
+  - This prevents showing stale timestamps after rescheduling
+
+For regular org events:
+  - Prefer SCHEDULED and DEADLINE from properties
+  - Fall back to plain timestamps in entry body
+
+Timestamps are extracted as cons cells: (org-formatted-string . parsed-time)."
+  (org-with-point-at marker
+    (let ((is-gcal-event (org-entry-get marker "entry-id")))
+      (if is-gcal-event
+          ;; org-gcal event: extract ONLY from :org-gcal: drawer
+          (let ((timestamps nil))
+            (save-excursion
+              (org-back-to-heading t)
+              ;; Search for :org-gcal: drawer
+              (when (re-search-forward "^[ \t]*:org-gcal:"
+                                      (save-excursion (org-end-of-subtree t) (point))
+                                      t)
+                (let ((drawer-start (point))
+                      (drawer-end (save-excursion
+                                   (if (re-search-forward "^[ \t]*:END:"
+                                                         (save-excursion (org-end-of-subtree t) (point))
+                                                         t)
+                                       (match-beginning 0)
+                                     (point)))))
+                  ;; Extract timestamps within drawer boundaries
+                  (goto-char drawer-start)
+                  (while (re-search-forward org-ts-regexp drawer-end t)
+                    (let ((timestamp-str (match-string 0)))
+                      (push (cons timestamp-str
+                                 (chime--timestamp-parse timestamp-str))
+                            timestamps))))))
+            (-non-nil (nreverse timestamps)))
+        ;; Regular org event: prefer SCHEDULED/DEADLINE, fall back to plain timestamps
+        (let ((property-timestamps
+               ;; Extract SCHEDULED and DEADLINE from properties
+               (-non-nil
+                (--map
+                 (let ((org-timestamp (org-entry-get marker it)))
+                   (and org-timestamp
+                        (cons org-timestamp
+                              (chime--timestamp-parse org-timestamp))))
+                 '("DEADLINE" "SCHEDULED"))))
+              (plain-timestamps
+               ;; Extract plain timestamps from entry body
+               ;; Skip planning lines (SCHEDULED, DEADLINE, CLOSED) to avoid duplicates
+               (let ((timestamps nil))
+                 (save-excursion
+                   ;; Skip heading and planning lines, but NOT other drawers (nil arg)
+                   (org-end-of-meta-data nil)
+                   (let ((start (point))
+                         (end (save-excursion (org-end-of-subtree t) (point))))
+                     ;; Only search if there's content after metadata
+                     (when (< start end)
+                       (goto-char start)
+                       ;; Search for timestamps until end of entry
+                       (while (re-search-forward org-ts-regexp end t)
+                         (let ((timestamp-str (match-string 0)))
+                           (push (cons timestamp-str
+                                      (chime--timestamp-parse timestamp-str))
+                                 timestamps))))))
+                 (nreverse timestamps))))
+          ;; Combine property and plain timestamps, removing duplicates and nils
+          (-non-nil (append property-timestamps plain-timestamps)))))))
 
 (defun chime--sanitize-title (title)
   "Sanitize TITLE to prevent Lisp read syntax errors during async serialization.
@@ -987,7 +1032,7 @@ MARKER acts like event's identifier.
 Returns file path and position instead of marker object for proper
 async serialization (markers can't be serialized across processes,
 especially when buffer names contain angle brackets)."
-  `((times . (,(chime--extract-time marker)))
+  `((times . ,(chime--extract-time marker))
     (title . ,(chime--extract-title marker))
     (intervals . ,(chime--extract-notication-intervals marker))
     (marker-file . ,(buffer-file-name (marker-buffer marker)))
