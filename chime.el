@@ -1383,9 +1383,11 @@ if needed."
       (force-mode-line-update))))
 
 ;; Automatically enable event loading monitor when debug mode is on
-;; Only enable in the main Emacs process, not in async subprocesses
+;; Only enable in the main Emacs process, not in async subprocesses.
+;; We detect async context by checking if this is an interactive session.
+;; Async child processes run in batch mode with noninteractive=t.
 (when (and chime-debug
-           (not (boundp 'async-in-child-emacs)))
+           (not noninteractive))
   (chime-debug-monitor-event-loading))
 
 (provide 'chime)
