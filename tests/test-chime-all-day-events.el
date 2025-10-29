@@ -38,21 +38,34 @@ If HAS-TIME is t, timestamp includes time component."
 ;;; Tests: All-day event detection
 
 (ert-deftest test-chime-has-timestamp-with-time ()
-  "Test that timestamps with time component are detected."
-  (should (chime--has-timestamp "<2025-11-15 Sat 10:00-11:00>"))
-  (should (chime--has-timestamp "<2025-11-15 Sat 10:00>"))
-  (should (chime--has-timestamp "<2025-11-15 Sat 09:30-11:45>")))
+  "Test that timestamps with time component are detected.
+
+REFACTORED: Uses dynamic timestamps"
+  (let ((time1 (test-time-tomorrow-at 10 0))
+        (time2 (test-time-tomorrow-at 9 30)))
+    (should (chime--has-timestamp (test-timestamp-string time1)))
+    (should (chime--has-timestamp (test-timestamp-string time1)))
+    (should (chime--has-timestamp (format-time-string "<%Y-%m-%d %a %H:%M-%H:%M>" time2)))))
 
 (ert-deftest test-chime-has-timestamp-without-time ()
-  "Test that all-day timestamps (no time) are correctly identified."
-  (should-not (chime--has-timestamp "<2025-11-15 Sat>"))
-  (should-not (chime--has-timestamp "<2025-12-25 Thu>"))
-  (should-not (chime--has-timestamp "<2025-01-01 Wed>")))
+  "Test that all-day timestamps (no time) are correctly identified.
+
+REFACTORED: Uses dynamic timestamps"
+  (let ((time1 (test-time-tomorrow-at 0 0))
+        (time2 (test-time-days-from-now 10))
+        (time3 (test-time-days-from-now 30)))
+    (should-not (chime--has-timestamp (test-timestamp-string time1 t)))
+    (should-not (chime--has-timestamp (test-timestamp-string time2 t)))
+    (should-not (chime--has-timestamp (test-timestamp-string time3 t)))))
 
 (ert-deftest test-chime-event-has-day-wide-timestamp ()
-  "Test detection of events with all-day timestamps."
-  (let ((all-day-event (test-allday--create-event "Birthday" "<2025-12-19 Fri>" nil))
-        (timed-event (test-allday--create-event "Meeting" "<2025-11-15 Sat 10:00-11:00>" t)))
+  "Test detection of events with all-day timestamps.
+
+REFACTORED: Uses dynamic timestamps"
+  (let* ((all-day-time (test-time-days-from-now 10))
+         (timed-time (test-time-tomorrow-at 10 0))
+         (all-day-event (test-allday--create-event "Birthday" (test-timestamp-string all-day-time t) nil))
+         (timed-event (test-allday--create-event "Meeting" (test-timestamp-string timed-time) t)))
     (should (chime-event-has-any-day-wide-timestamp all-day-event))
     (should-not (chime-event-has-any-day-wide-timestamp timed-event))))
 
