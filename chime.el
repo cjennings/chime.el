@@ -421,6 +421,26 @@ supported by your system."
   :type '(choice (const :tag "Use system beep" nil)
                  (file :tag "Sound file path")))
 
+(defcustom chime-startup-delay 10
+  "Seconds to wait before first event check after chime-mode is enabled.
+This delay allows org-agenda-files and related infrastructure to finish
+loading before chime attempts to check for events.
+
+Default of 10 seconds works well for most configurations. Adjust if:
+- You have custom org-agenda-files setup that takes longer to initialize
+- You want faster startup (reduce to 5) and know org is ready
+- You see \"found 0 events\" messages (increase to 15 or 20)
+
+Set to 0 to check immediately (not recommended unless you're sure
+org-agenda-files is populated at startup)."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'integer
+  :set (lambda (symbol value)
+         (unless (and (integerp value) (>= value 0))
+           (user-error "chime-startup-delay must be a non-negative integer, got: %s" value))
+         (set-default symbol value)))
+
 (defcustom chime-debug t
   "Enable debug functions for troubleshooting chime behavior.
 When non-nil, loads chime-debug.el which provides:
@@ -469,6 +489,11 @@ Stored as (EVENT-MSG . MINUTES-UNTIL) or nil if no upcoming event.")
 (defvar chime--upcoming-events nil
   "List of upcoming events with full data for tooltip and clicking.
 Each event includes marker, title, times, and intervals.")
+
+(defvar chime--validation-done nil
+  "Whether configuration validation has been performed.
+Validation runs on the first call to `chime-check', after `chime-startup-delay'
+has elapsed. This gives startup hooks time to populate org-agenda-files.")
 
 (defvar chime-modeline-string nil
   "Modeline string showing next upcoming event.")
@@ -970,11 +995,18 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
       (setq chime--upcoming-events upcoming)
       ;; Format and set modeline string with text properties
       (setq chime-modeline-string
-            (when soonest-event-text
-              (chime--propertize-modeline-string
-               (format chime-modeline-format soonest-event-text)
-               soonest-event-obj)))
-      (force-mode-line-update))))
+            (if soonest-event-text
+                (chime--propertize-modeline-string
+                 (format chime-modeline-format soonest-event-text)
+                 soonest-event-obj)
+              ;; Show indicator when no events within lookahead window
+              ;; but events exist in tooltip window
+              (when upcoming
+                (propertize " ⏰ No events soon"
+                           'help-echo (chime--make-tooltip upcoming)
+                           'mouse-face 'mode-line-highlight))))
+      ;; Force update ALL windows/modelines, not just current buffer
+      (force-mode-line-update t))))
 
 (defun chime--get-tags (marker)
   "Retrieve tags of MARKER."
@@ -1349,22 +1381,96 @@ especially when buffer names contain angle brackets)."
     (marker-file . ,(buffer-file-name (marker-buffer marker)))
     (marker-pos . ,(marker-position marker))))
 
+;;;###autoload
+(defun chime-validate-configuration ()
+  "Validate chime's runtime environment and configuration.
+Returns a list of (SEVERITY MESSAGE) pairs, or nil if all checks pass.
+SEVERITY is one of: :error :warning :info
+
+Checks performed:
+- org-agenda-files is set and non-empty
+- org-agenda-files exist on disk
+- org-agenda package is loadable
+- global-mode-string available (for modeline display)
+
+When called interactively, displays results via message/warning system.
+When called programmatically, returns structured validation results."
+  (interactive)
+  (let ((issues '()))
+
+    ;; Critical: org-agenda-files must be set and non-empty
+    (unless (and (boundp 'org-agenda-files)
+                 org-agenda-files
+                 (listp org-agenda-files)
+                 (> (length org-agenda-files) 0))
+      (push '(:error "org-agenda-files is not set or empty.\nChime cannot check for events without org files to monitor.\n\nSet org-agenda-files in your config:\n  (setq org-agenda-files '(\"~/org/inbox.org\" \"~/org/work.org\"))")
+            issues))
+
+    ;; Warning: Check if files actually exist
+    (when (and (boundp 'org-agenda-files)
+               org-agenda-files
+               (listp org-agenda-files))
+      (let ((missing-files
+             (cl-remove-if #'file-exists-p org-agenda-files)))
+        (when missing-files
+          (push `(:warning ,(format "%d org-agenda-files don't exist:\n  %s\n\nChime will skip these files during event checks."
+                                   (length missing-files)
+                                   (mapconcat #'identity missing-files "\n  ")))
+                issues))))
+
+    ;; Check org-agenda is loadable
+    (unless (require 'org-agenda nil t)
+      (push '(:error "Cannot load org-agenda.\nEnsure org-mode is installed and available in load-path.")
+            issues))
+
+    ;; Check modeline support (if enabled)
+    (when (and chime-enable-modeline
+               (not (boundp 'global-mode-string)))
+      (push '(:warning "global-mode-string not available.\nModeline display may not work in this Emacs version.")
+            issues))
+
+    ;; Display results if interactive
+    (when (called-interactively-p 'any)
+      (if (null issues)
+          (message "Chime: ✓ All validation checks passed!")
+        ;; Show errors and warnings
+        (let ((errors (cl-remove-if-not (lambda (i) (eq (car i) :error)) issues))
+              (warnings (cl-remove-if-not (lambda (i) (eq (car i) :warning)) issues)))
+          (when errors
+            (dolist (err errors)
+              (display-warning 'chime (cadr err) :error)))
+          (when warnings
+            (dolist (warn warnings)
+              (display-warning 'chime (cadr warn) :warning))))))
+
+    ;; Return issues for programmatic use
+    issues))
+
 (defun chime--stop ()
   "Stop the notification timer and cancel any in-progress check."
   (-some-> chime--timer (cancel-timer))
   (when chime--process
     (interrupt-process chime--process)
-    (setq chime--process nil)))
+    (setq chime--process nil))
+  ;; Reset validation flag so it runs again on next start
+  (setq chime--validation-done nil))
 
 (defun chime--start ()
   "Start the notification timer.  Cancel old one, if any.
 Timer interval is controlled by `chime-check-interval'.
-Runs an immediate check for smoother experience."
-  (chime--stop)
-  (chime-check)
+First check runs after `chime-startup-delay' seconds to allow org-agenda-files to load.
 
-  (--> (time-add (current-time) chime-check-interval)
-       (run-at-time it chime-check-interval 'chime-check)
+Configuration validation happens on the first `chime-check' call, after the startup
+delay has elapsed. This gives startup hooks time to populate org-agenda-files."
+  (chime--stop)
+
+  ;; Wait chime-startup-delay seconds before first check
+  ;; This allows org-agenda-files and related infrastructure to finish loading
+  (when (featurep 'chime-debug)
+    (chime--log-silently "Chime: Scheduling first check in %d seconds" chime-startup-delay))
+
+  ;; Schedule repeating timer: first run at t=chime-startup-delay, then every chime-check-interval
+  (--> (run-at-time chime-startup-delay chime-check-interval 'chime-check)
        (setf chime--timer it)))
 
 (defun chime--process-notifications (events)
@@ -1395,7 +1501,30 @@ Does nothing if a check is already in progress."
              (lambda (events)
                (setq chime--process nil)
                (setq chime--last-check-time (current-time))
-               (funcall callback events)))))))
+               ;; Handle errors from async process
+               (condition-case err
+                   (progn
+                     ;; Check if events is an error signal from async process
+                     (if (and (listp events)
+                              (eq (car events) 'async-signal))
+                         (progn
+                           ;; Async process returned an error
+                           (when (featurep 'chime-debug)
+                             (chime--debug-log-async-error (cdr events)))
+                           (chime--log-silently "Chime: Async error: %s"
+                                               (error-message-string (cdr events)))
+                           (message "Chime: Event check failed - see *Messages* for details"))
+                       ;; Success - process events normally
+                       (when (featurep 'chime-debug)
+                         (chime--debug-log-async-complete events))
+                       (funcall callback events)))
+                 (error
+                  ;; Error occurred in callback processing
+                  (when (featurep 'chime-debug)
+                    (chime--debug-log-async-error err))
+                  (chime--log-silently "Chime: Error processing events: %s"
+                                      (error-message-string err))
+                  (message "Chime: Error processing events - see *Messages* for details")))))))))
 
 (defun chime--log-silently (format-string &rest args)
   "Append formatted message to *Messages* buffer without echoing.
@@ -1411,8 +1540,25 @@ FORMAT-STRING and ARGS are passed to `format'."
 (defun chime-check ()
   "Parse agenda view and notify about upcoming events.
 
-Do nothing if a check is already in progress in the background."
+Do nothing if a check is already in progress in the background.
+
+On the first call after `chime-mode' is enabled, validates the runtime configuration.
+This happens after `chime-startup-delay', giving startup hooks time to populate
+org-agenda-files. If validation fails, logs an error and skips the check."
   (interactive)
+
+  ;; Validate configuration on first check only
+  (unless chime--validation-done
+    (setq chime--validation-done t)
+    (let ((issues (chime-validate-configuration)))
+      (when (cl-some (lambda (i) (eq (car i) :error)) issues)
+        ;; Critical errors found - log and skip this check
+        (chime--log-silently "Chime: Configuration validation failed")
+        (message "Chime: Configuration errors detected. Run M-x chime-validate-configuration for details")
+        ;; Don't proceed with check
+        (cl-return-from chime-check nil))))
+
+  ;; Validation passed or already done - proceed with check
   (chime--fetch-and-process
    (lambda (events)
      (chime--process-notifications events)
@@ -1451,15 +1597,17 @@ if needed."
       (setq global-mode-string
             (delq 'chime-modeline-string global-mode-string))
       (setq chime-modeline-string nil)
-      (force-mode-line-update))))
+      ;; Force update ALL windows/modelines, not just current buffer
+      (force-mode-line-update t))))
 
-;; Automatically enable event loading monitor when debug mode is on
+;; Automatically enable debug features when debug mode is on
 ;; Only enable in the main Emacs process, not in async subprocesses.
 ;; We detect async context by checking if this is an interactive session.
 ;; Async child processes run in batch mode with noninteractive=t.
 (when (and chime-debug
            (not noninteractive))
-  (chime-debug-monitor-event-loading))
+  (chime-debug-monitor-event-loading)
+  (chime-debug-enable-async-monitoring))
 
 (provide 'chime)
 ;;; chime.el ends here

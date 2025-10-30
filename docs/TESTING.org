@@ -1,0 +1,169 @@
+* Chime.el Test Suite
+:PROPERTIES:
+:CUSTOM_ID: chime.el-test-suite
+:END:
+Quick reference for running tests in the chime.el project.
+
+** Quick Start
+:PROPERTIES:
+:CUSTOM_ID: quick-start
+:END:
+#+begin_src sh
+# From the tests/ directory:
+make test-file FILE=validate-configuration    # Run tests in one file (fuzzy match)
+make test-one TEST=pilot                      # Run a single test (fuzzy match)
+make test                                     # Run all tests (~339 tests, takes time)
+#+end_src
+
+** Common Commands
+:PROPERTIES:
+:CUSTOM_ID: common-commands
+:END:
+*** Run tests in one file
+:PROPERTIES:
+:CUSTOM_ID: run-tests-in-one-file
+:END:
+#+begin_src sh
+make test-file FILE=validate-configuration
+# Fuzzy matches: finds test-chime-validate-configuration.el
+# You can also use the full filename:
+make test-file FILE=test-chime-validate-configuration.el
+#+end_src
+
+*** Run a single test
+:PROPERTIES:
+:CUSTOM_ID: run-a-single-test
+:END:
+#+begin_src sh
+make test-one TEST=pilot
+# Fuzzy matches test names, e.g., finds:
+# test-chime-validate-configuration-normal-valid-config-returns-nil
+#+end_src
+
+*** Other useful commands
+:PROPERTIES:
+:CUSTOM_ID: other-useful-commands
+:END:
+#+begin_src sh
+make count         # Count tests per file (useful to see what you're running)
+make list          # List all test names
+make validate      # Check parentheses balance in all files
+make clean         # Remove byte-compiled files and logs
+make help          # Show all available commands
+#+end_src
+
+** Test File Structure
+:PROPERTIES:
+:CUSTOM_ID: test-file-structure
+:END:
+All test files follow this pattern (based on quality-engineer.org
+guidelines):
+
+#+begin_src elisp
+;;; test-chime-FEATURE.el --- Tests for FEATURE -*- lexical-binding: t; -*-
+
+(when noninteractive
+  (package-initialize))
+
+(require 'ert)
+(require 'dash)
+(require 'org-agenda)  ; or other deps
+(load (expand-file-name "../chime.el") nil t)
+(require 'cl-lib)
+
+;; Setup/teardown functions (can be empty)
+(defun test-chime-FEATURE-setup () nil)
+(defun test-chime-FEATURE-teardown () nil)
+
+;; Test helper functions
+(defun test-chime-FEATURE--helper () ...)
+
+;; Tests organized into sections:
+;;; Normal Cases
+;;; Boundary Cases
+;;; Error Cases
+
+(ert-deftest test-chime-FEATURE-normal-description ()
+  "Descriptive docstring."
+  (test-chime-FEATURE-setup)
+  ;; test body with (should ...) assertions
+  (test-chime-FEATURE-teardown))
+#+end_src
+
+** Key Patterns
+:PROPERTIES:
+:CUSTOM_ID: key-patterns
+:END:
+*** Mocking external dependencies
+:PROPERTIES:
+:CUSTOM_ID: mocking-external-dependencies
+:END:
+#+begin_src elisp
+(cl-letf (((symbol-function 'file-exists-p) (lambda (_) t))
+          ((symbol-function 'require) (lambda (_ &optional _ _) t)))
+  ;; test body - these functions are mocked only within this scope
+  )
+#+end_src
+
+*** Test naming convention
+:PROPERTIES:
+:CUSTOM_ID: test-naming-convention
+:END:
+#+begin_example
+test-chime-FEATURE-CATEGORY-description
+                   ^^^^^^^^
+Categories: normal, boundary, error, warning, interactive
+#+end_example
+
+*** Running tests from command line (without Makefile)
+:PROPERTIES:
+:CUSTOM_ID: running-tests-from-command-line-without-makefile
+:END:
+#+begin_src sh
+emacs --batch -Q \
+  -L ~/.emacs.d/elpa/dash-*/ \
+  -L ~/.emacs.d/elpa/alert-*/ \
+  -L ~/.emacs.d/elpa/async-*/ \
+  -l ert \
+  -l test-chime-validate-configuration.el \
+  --eval '(ert-run-tests-batch-and-exit)'
+#+end_src
+
+** Important Notes
+:PROPERTIES:
+:CUSTOM_ID: important-notes
+:END:
+1. *Load path*: The Makefile automatically finds dependencies in
+   =~/.emacs.d/elpa/=
+2. *Fuzzy matching*: Both =test-file= and =test-one= support partial
+   names
+3. *Test logs*: Output saved to =test-file-output.log= or
+   =test-output.log=
+4. *Mock warnings*: "Redefining 'file-exists-p' might break native
+   compilation" is normal
+5. *Test categories*: Follow the Normal/Boundary/Error pattern from
+   quality-engineer.org
+
+** Test Count (as of 2025-10-29)
+:PROPERTIES:
+:CUSTOM_ID: test-count-as-of-2025-10-29
+:END:
+Total: ~339 tests across 28 files
+
+Top test files by count:
+- test-chime-modeline.el: 67 tests
+- test-chime-notification-text.el: 40 tests
+- test-chime-timestamp-parse.el: 32 tests
+- test-chime-validate-configuration.el: 15 tests
+
+** Dependencies
+:PROPERTIES:
+:CUSTOM_ID: dependencies
+:END:
+Required packages (auto-detected by Makefile):
+- dash (list manipulation)
+- alert (notifications)
+- async (async processes)
+- org-agenda (built-in, events source)
+
+Use =make check-deps= to verify all dependencies are installed.

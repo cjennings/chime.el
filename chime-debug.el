@@ -208,5 +208,169 @@ To enable:
   (chime--log-silently "Chime debug: Event loading monitor disabled")
   (message "Chime: Event loading monitor disabled"))
 
+;;; Async Process Debugging
+
+(defvar chime--debug-async-start-time nil
+  "Time when the last async check started.")
+
+(defvar chime--debug-async-check-count 0
+  "Number of async checks performed since Emacs started.")
+
+(defvar chime--debug-async-failures 0
+  "Number of async check failures since Emacs started.")
+
+(defvar chime--debug-async-timeout-threshold 30
+  "Warn if async process takes longer than this many seconds.")
+
+(defun chime--debug-log-async-start ()
+  "Log when an async check starts."
+  (setq chime--debug-async-check-count (1+ chime--debug-async-check-count))
+  (setq chime--debug-async-start-time (current-time))
+  (chime--log-silently "[Chime Async #%d] Starting event check at %s"
+                       chime--debug-async-check-count
+                       (format-time-string "%H:%M:%S" chime--debug-async-start-time)))
+
+(defun chime--debug-log-async-complete (events)
+  "Log when an async check completes successfully.
+EVENTS is the list of events returned."
+  (when chime--debug-async-start-time
+    (let* ((duration (float-time (time-subtract (current-time)
+                                                chime--debug-async-start-time)))
+           (event-count (length events)))
+      (chime--log-silently "[Chime Async #%d] Completed in %.2fs - found %d event%s"
+                           chime--debug-async-check-count
+                           duration
+                           event-count
+                           (if (= event-count 1) "" "s"))
+      (when (> duration chime--debug-async-timeout-threshold)
+        (chime--log-silently "[Chime Async #%d] WARNING: Slow async process (%.2fs)"
+                             chime--debug-async-check-count
+                             duration)
+        (message "Chime: Slow event check took %.2fs" duration))
+      (setq chime--debug-async-start-time nil))))
+
+(defun chime--debug-log-async-error (error-data)
+  "Log when an async check fails with an error.
+ERROR-DATA is the error information from the async process."
+  (setq chime--debug-async-failures (1+ chime--debug-async-failures))
+  (chime--log-silently "[Chime Async #%d] ERROR: %s"
+                       chime--debug-async-check-count
+                       (prin1-to-string error-data))
+  (message "Chime: Event check failed - see *Messages* for details")
+  (setq chime--debug-async-start-time nil))
+
+;;;###autoload
+(defun chime--debug-show-async-stats ()
+  "Show statistics about async process performance."
+  (interactive)
+  (chime--log-silently "=== Chime Debug: Async Stats ===")
+  (chime--log-silently "Total checks: %d" chime--debug-async-check-count)
+  (chime--log-silently "Failures: %d" chime--debug-async-failures)
+  (chime--log-silently "Success rate: %.1f%%"
+                       (if (> chime--debug-async-check-count 0)
+                           (* 100.0 (/ (float (- chime--debug-async-check-count
+                                                chime--debug-async-failures))
+                                      chime--debug-async-check-count))
+                         0.0))
+  (chime--log-silently "Currently running: %s"
+                       (if (and chime--process (process-live-p chime--process))
+                           (format "yes (started %s)"
+                                  (if chime--debug-async-start-time
+                                      (format "%.1fs ago"
+                                             (float-time (time-subtract (current-time)
+                                                                       chime--debug-async-start-time)))
+                                    "unknown"))
+                         "no"))
+  (chime--log-silently "=== End Chime Debug ===\n")
+  (message "Chime: Async stats dumped to *Messages*"))
+
+;;; Feature/Package Loading Tracker
+
+(defun chime--debug-show-loaded-features ()
+  "Show which chime-related features and packages are currently loaded."
+  (let ((chime-features '(org org-agenda org-duration org-contacts
+                         dash alert async chime chime-debug))
+        (loaded '())
+        (not-loaded '()))
+    (dolist (feature chime-features)
+      (if (featurep feature)
+          (push feature loaded)
+        (push feature not-loaded)))
+    (list :loaded (nreverse loaded)
+          :not-loaded (nreverse not-loaded))))
+
+;;;###autoload
+(defun chime--debug-dump-loaded-features ()
+  "Dump which chime-related features are currently loaded.
+Useful for diagnosing lazy-loading issues."
+  (interactive)
+  (let ((result (chime--debug-show-loaded-features)))
+    (chime--log-silently "=== Chime Debug: Loaded Features ===")
+    (chime--log-silently "Loaded features:")
+    (dolist (feature (plist-get result :loaded))
+      (chime--log-silently "  ✓ %s" feature))
+    (when (plist-get result :not-loaded)
+      (chime--log-silently "\nNot loaded:")
+      (dolist (feature (plist-get result :not-loaded))
+        (chime--log-silently "  ✗ %s" feature)))
+    (chime--log-silently "=== End Chime Debug ===\n")
+    (message "Chime: Feature list dumped to *Messages*")))
+
+;;;###autoload
+(defun chime-debug-enable-async-monitoring ()
+  "Enable comprehensive async process monitoring.
+Logs every async check start, completion, and failure.
+Warns about slow processes and tracks statistics."
+  (interactive)
+  ;; Add advice to chime--fetch-and-process to track async lifecycle
+  (advice-add 'chime--fetch-and-process :before
+              (lambda (&rest _)
+                (chime--debug-log-async-start)))
+
+  ;; We'll need to modify chime.el to call completion/error handlers
+  (chime--log-silently "Chime debug: Async process monitoring enabled")
+  (message "Chime: Async monitoring enabled - use M-x chime--debug-show-async-stats"))
+
+;;;###autoload
+(defun chime-debug-disable-async-monitoring ()
+  "Disable async process monitoring."
+  (interactive)
+  (advice-remove 'chime--fetch-and-process
+                 (lambda (&rest _)
+                   (chime--debug-log-async-start)))
+  (chime--log-silently "Chime debug: Async process monitoring disabled")
+  (message "Chime: Async monitoring disabled"))
+
+;;;###autoload
+(defun chime-debug-force-check ()
+  "Force an immediate chime-check and dump diagnostics.
+Shows loaded features before the check and logs async process details."
+  (interactive)
+  (chime--log-silently "\n=== Chime Debug: Forced Check ===")
+  (chime--log-silently "Time: %s" (format-time-string "%Y-%m-%d %H:%M:%S"))
+
+  ;; Show what's loaded
+  (let ((result (chime--debug-show-loaded-features)))
+    (chime--log-silently "Loaded features: %s"
+                         (mapconcat #'symbol-name (plist-get result :loaded) ", "))
+    (when (plist-get result :not-loaded)
+      (chime--log-silently "Not loaded: %s"
+                           (mapconcat #'symbol-name (plist-get result :not-loaded) ", "))))
+
+  ;; Show process state
+  (chime--log-silently "Process alive: %s"
+                       (if (and chime--process (process-live-p chime--process))
+                           "yes (check already running)"
+                         "no"))
+
+  ;; Show org-agenda-files
+  (chime--log-silently "Org agenda files: %d" (length org-agenda-files))
+  (chime--log-silently "=== Starting Check ===\n")
+
+  ;; Run the check
+  (chime-check)
+
+  (message "Chime: Forced check initiated - see *Messages* for details"))
+
 (provide 'chime-debug)
 ;;; chime-debug.el ends here

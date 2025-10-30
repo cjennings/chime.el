@@ -47,7 +47,7 @@ This package is NOT YET available on MELPA.
 #+BEGIN_SRC elisp
 (use-package chime
   :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
-  :after (alert org-agenda)
+  :after alert
   :commands (chime-mode chime-check)
   :bind ("C-c A" . chime-check)
   :config
@@ -656,7 +656,7 @@ For Monday-Friday events, you can either:
 #+BEGIN_SRC elisp
   (use-package chime
     :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
-    :after (alert org-agenda)
+    :after alert
     :commands (chime-mode chime-check)
     :config
     ;; Polling interval: check every 60 seconds (default)
