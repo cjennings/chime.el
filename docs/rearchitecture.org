@@ -1,0 +1,1125 @@
+#+TITLE: chime.el Re-architecture Specification & Project Tracker
+#+AUTHOR: Architecture Analysis
+#+DATE: 2025-10-29
+#+STARTUP: overview
+#+TODO: TODO DOING | DONE CANCELLED
+#+PRIORITIES: A C E
+
+* Executive Summary
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** Current State
+- *Package size*: 1,465 lines (chime.el) + 250 lines (chime-debug.el) = ~1,700 lines total
+- *Functions*: 53 functions
+- *Test files*: 27 test files with comprehensive coverage
+- *Test lines*: 339 tests total
+- *Architecture*: Async-first, single-file main package
+
+** Overall Verdict: Package is in good shape
+- Size is appropriate for single file (comparable to org-gcal at 2,187 lines)
+- Already extracted debug code appropriately
+- Well-tested with unit and integration tests
+- Performance is good (bottleneck is org-agenda-list, not our code)
+
+** Recommended Changes
+Priority-based roadmap:
+- [#A] Refactor ~chime--update-modeline~ (HIGH value, LOW risk)
+- [#B] Improve inline documentation (MEDIUM effort, HIGH value)
+- [#B] Add section headers to chime.el (LOW effort, MEDIUM value)
+- [#B] Create test data builders (LOW effort, HIGH test value)
+- [#C] Add architecture documentation (LOW effort, MEDIUM value)
+
+** Rejected Ideas (with rationale)
+- Split into multiple files (unnecessary at this size)
+- Rewrite state management (current approach works well)
+- Migrate to cl-defstruct events (too much churn)
+- Performance optimizations (not the bottleneck)
+
+* Progress Tracker
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** DONE Initial Architecture Analysis :analysis:
+CLOSED: [2025-10-29 Tue 20:40]
+:PROPERTIES:
+:EFFORT: 1h
+:END:
+- Analyzed current file structure
+- Compared with ecosystem (org-gcal, magit, etc.)
+- Identified refactoring opportunities
+- Created this document
+
+** TODO [#A] Refactor ~chime--update-modeline~ :refactor:performance:
+:PROPERTIES:
+:EFFORT: 3h
+:CONTEXT: Most complex function, recently touched for bug fix
+:VALUE: High - makes future maintenance easier
+:RISK: Low - comprehensive tests verify correctness
+:END:
+
+*** Goals
+- Extract 4-5 focused functions from 86-line function
+- Each function should have single responsibility
+- All existing tests must pass
+- Add unit tests for new functions
+
+*** TODO Extract ~chime--filter-events-in-window~
+Filter events to those within lookahead window.
+
+*** TODO Extract ~chime--find-soonest-modeline-event~
+Find soonest timed event for modeline display.
+
+*** TODO Extract ~chime--build-upcoming-events-list~
+Build list of upcoming events for tooltip.
+
+*** TODO Update ~chime--update-modeline~ to orchestrate
+Main function just calls the above helpers.
+
+*** TODO Add unit tests for extracted functions
+Each helper function should have dedicated tests.
+
+*** TODO Verify all integration tests still pass
+Run full test suite to ensure no regressions.
+
+** TODO [#B] Add Section Headers to chime.el :organization:documentation:
+:PROPERTIES:
+:EFFORT: 30m
+:VALUE: Medium - improves navigation
+:RISK: None - comments only
+:END:
+
+*** Goals
+- Add ;;;; section headers for major groups
+- Support imenu/outline-mode navigation
+- Make file structure clear at a glance
+
+*** Proposed Sections
+1. Dependencies
+2. Customization
+3. Time/Date Utilities
+4. Event Filtering
+5. All-Day Event Handling
+6. Modeline & UI
+7. Notifications
+8. Core Lifecycle
+
+*** TODO Add section headers following outline style
+Use ;;;; for top-level sections, ;;;;; for subsections.
+
+*** TODO Test imenu navigation
+Verify sections appear in imenu.
+
+*** TODO Update IMPLEMENTATION_NOTES.org with structure
+Document the new organization.
+
+** TODO [#B] Create Test Data Builders :testing:refactor:
+:PROPERTIES:
+:EFFORT: 2h
+:VALUE: High - reduces test duplication
+:RISK: None - test-only code
+:END:
+
+*** Goals
+- Extract common test patterns into utilities
+- Make tests more readable and maintainable
+- Reduce setup duplication in integration tests
+
+*** TODO Create testutil-chime.el
+New test utility file for chime-specific helpers.
+
+*** TODO Add ~test-make-event~ builder
+Build complete test events with title, time, marker.
+
+*** TODO Add ~test-with-chime-config~ macro
+Run tests with specific chime configuration.
+
+*** TODO Add ~test-org-file-with-events~ macro
+Create temp org files with events for testing.
+
+*** TODO Refactor integration tests to use builders
+Update existing tests to use new utilities.
+
+*** TODO Document test utilities
+Add commentary explaining usage patterns.
+
+** TODO [#B] Improve Inline Documentation :documentation:maintainability:
+:PROPERTIES:
+:EFFORT: 2h
+:VALUE: High - makes code more maintainable and approachable
+:RISK: None - documentation only
+:CONTEXT: Function purposes not always clear from names/docstrings alone
+:END:
+
+*** Goals
+- Improve docstrings for major functions
+- Add comments explaining "why" not just "what"
+- Document non-obvious design decisions
+- Clarify function responsibilities
+- Help contributors understand architecture through code
+
+*** TODO Audit current docstring quality
+Review all 53 functions for docstring completeness.
+- [ ] Do they explain the purpose?
+- [ ] Do they document all parameters?
+- [ ] Do they explain return values?
+- [ ] Do they note side effects?
+
+*** TODO Improve docstrings for complex functions
+Focus on functions that are hard to understand:
+- ~chime--update-modeline~ (after refactoring)
+- ~chime--timestamp-parse~
+- ~chime--extract-time~ (source-aware logic)
+- ~chime--sanitize-title~
+- ~chime--check-event~
+
+*** TODO Add "why" comments for non-obvious decisions
+Examples:
+- Why we use async for event retrieval
+- Why we filter all-day events for modeline
+- Why we deduplicate by title
+- Why we check org-gcal events differently
+
+*** TODO Document data structures in comments
+Add examples of data structure shapes:
+- Event alist format
+- Times list format
+- Upcoming events tuple format
+
+*** TODO Add section introductory comments
+Brief explanation at start of each section (after adding section headers).
+
+** TODO [#C] Add Architecture Documentation :documentation:
+:PROPERTIES:
+:EFFORT: 1h
+:VALUE: Medium - helps future contributors
+:RISK: None - documentation only
+:END:
+
+*** TODO Document state flow
+Timer → check → async → callback → update modeline.
+
+*** TODO Create architecture diagram
+Visual representation of component interactions.
+
+*** TODO Document async coordination
+Explain why async is used and how it works.
+
+*** TODO Update IMPLEMENTATION_NOTES.org
+Keep implementation notes current with changes.
+
+** CANCELLED [#E] Split into Multiple Files :architecture:
+CLOSED: [2025-10-29 Tue 20:40]
+:PROPERTIES:
+:CANCELLED: [2025-10-29 Tue]
+:REASON: Not necessary at current size, adds complexity
+:END:
+
+*** Rationale for Rejection
+- At 1,465 lines, chime.el is well within acceptable range
+- org-gcal (2,187 lines) works well as single file
+- Functions are highly interconnected (hard boundaries)
+- No user benefit (loads as one unit anyway)
+- Adds maintenance overhead (where does new code go?)
+- Test organization is already good (27 files)
+
+*** When to Reconsider
+Split if:
+- File exceeds ~2,500 lines (currently at 1,465)
+- Adding major new subsystem (should be separate package)
+- Performance issues from loading (not applicable)
+- Multiple maintainers need ownership boundaries
+
+** CANCELLED [#E] Migrate to cl-defstruct Events :architecture:refactor:
+CLOSED: [2025-10-29 Tue 20:40]
+:PROPERTIES:
+:CANCELLED: [2025-10-29 Tue]
+:REASON: Too much churn for the value gained
+:END:
+
+*** Rationale for Rejection
+- Current alist approach works fine
+- Many access points to update (high effort)
+- Need careful migration strategy (medium risk)
+- Type safety benefit is modest for our use case
+- No performance benefit (alists are fine for small data)
+
+*** Alternative Approach
+- Keep current alist structure
+- Add documentation about expected keys
+- Consider validation functions if errors occur
+
+** CANCELLED [#E] Rewrite State Management :architecture:
+CLOSED: [2025-10-29 Tue 20:40]
+:PROPERTIES:
+:CANCELLED: [2025-10-29 Tue]
+:REASON: Current approach works well, not worth the risk
+:END:
+
+*** Rationale for Rejection
+- Only 5 global variables with clear ownership
+- State is simple and well-documented
+- No bugs related to state management
+- High churn for minimal benefit
+- Risk of subtle regressions
+
+*** Current State (Works Well)
+#+begin_src elisp
+(defvar chime--timer nil)              ; Timer management
+(defvar chime--process nil)            ; Async process
+(defvar chime--last-check-time nil)    ; Rate limiting
+(defvar chime--upcoming-events nil)    ; Cached events
+(defvar chime-modeline-string nil)     ; Display string
+#+end_src
+
+** CANCELLED [#E] Performance Optimizations :performance:
+CLOSED: [2025-10-29 Tue 20:40]
+:PROPERTIES:
+:CANCELLED: [2025-10-29 Tue]
+:REASON: Not the bottleneck, premature optimization
+:END:
+
+*** Rationale for Rejection
+Time breakdown:
+- ~org-agenda-list~ expansion: 90%+ (org-mode, not us)
+- Async process overhead: ~5% (necessary for non-blocking)
+- Our code: ~5% (negligible)
+
+Our code is not the bottleneck. Don't optimize.
+
+*** Micro-optimizations to Avoid
+- Caching parsed timestamps (invalidation is hard)
+- Avoiding re-sorts (lists are small, <100 events)
+- Hash tables for lookups (alists are fine for our sizes)
+
+* Current Architecture Analysis
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** File Structure
+*** chime.el (1,465 lines, 60KB)
+Main package file containing all core functionality.
+
+**** Function Count: 53 functions
+Breakdown by category:
+- Time/Date utilities: ~13 functions
+- Event extraction/parsing: ~5 functions
+- Filtering/predicates: ~7 functions
+- All-day event handling: ~6 functions
+- UI/Modeline: ~7 functions
+- Core lifecycle: ~5 functions
+- Other utilities: ~10 functions
+
+**** Largest Functions (by line count)
+1. ~chime--update-modeline~: 86 lines ⚠️ (refactor candidate)
+2. ~chime--sanitize-title~: 49 lines
+3. ~chime--timestamp-parse~: 43 lines
+4. ~chime--day-wide-notification-text~: 41 lines
+5. ~chime-event-is-today~: 33 lines
+6. ~chime--make-tooltip~: 31 lines
+
+*** chime-debug.el (250 lines, 9.6KB)
+Debug utilities, conditionally loaded.
+- Well separated ✓
+- Optional loading ✓
+- No runtime overhead when disabled ✓
+
+** Test Structure
+*** Test Organization ✓ GOOD
+- 27 test files
+- Each tests one function or integration scenario
+- Clear naming: ~test-chime-<function>.el~
+- Integration tests: ~test-integration-<scenario>.el~
+
+*** Test Coverage ✓ COMPREHENSIVE
+- 339 tests total
+- Unit tests for individual functions
+- Integration tests for workflows
+- Uses testutil-general.el and testutil-time.el
+- Dynamic timestamps (no hardcoded dates) ✓
+
+*** Test Utilities
+**** testutil-general.el
+- File/directory management
+- Test base directory: ~/.temp-chime-tests/
+- Cleanup utilities
+
+**** testutil-time.el
+- Dynamic timestamp generation
+- Relative time functions (today, tomorrow, etc.)
+- Prevents test expiration
+
+** Strengths of Current Architecture ✓
+1. *Async-first design* - Non-blocking event retrieval
+2. *Good separation* - Debug code is separate
+3. *Comprehensive testing* - Unit + integration tests
+4. *Configurable* - Many defcustom options
+5. *Source-aware* - Handles org-gcal vs regular org differently
+6. *Well-tested* - 339 tests with good coverage
+
+** Weaknesses / Improvement Opportunities
+1. *~chime--update-modeline~ too large* - 86 lines, multiple responsibilities
+   → Addressed by: [[*Refactor ~chime--update-modeline~][Refactor task]] [#A]
+2. *No section headers* - Hard to navigate 1,465 line file
+   → Addressed by: [[*Add Section Headers to chime.el][Section headers task]] [#B]
+3. *Test duplication* - Integration tests have setup duplication
+   → Addressed by: [[*Create Test Data Builders][Test builders task]] [#B]
+4. *Limited inline documentation* - Function purposes not always clear
+   → Addressed by: [[*Improve Inline Documentation][Inline docs task]] [#B]
+
+* Detailed Refactoring Specifications
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** Refactoring ~chime--update-modeline~
+:PROPERTIES:
+:ID: refactor-update-modeline
+:PRIORITY: A
+:END:
+
+*** Current Issues
+- 86 lines doing multiple responsibilities
+- Filters events, finds soonest, deduplicates, sorts, formats, updates state
+- Hard to test individual pieces
+- Recently touched for bug fix (recurring events deduplication)
+
+*** Current Function Responsibilities
+1. Check if modeline is enabled
+2. Filter events by time windows (modeline vs tooltip)
+3. Find soonest timed event for modeline
+4. Build upcoming events list for tooltip
+5. Deduplicate by title (recently added)
+6. Sort by time
+7. Format modeline string
+8. Update global state
+
+*** Proposed Decomposition
+
+**** New Function: ~chime--filter-events-in-window~
+#+begin_src elisp
+(defun chime--filter-events-in-window (events now lookahead-minutes filter-all-day-p)
+  "Filter EVENTS to those within LOOKAHEAD-MINUTES from NOW.
+If FILTER-ALL-DAY-P is non-nil, exclude all-day events.
+Returns list of (EVENT TIME-INFO MINUTES-UNTIL) tuples."
+  ...)
+#+end_src
+
+**** New Function: ~chime--find-soonest-modeline-event~
+#+begin_src elisp
+(defun chime--find-soonest-modeline-event (events now lookahead-minutes)
+  "Find soonest timed event for modeline from EVENTS.
+Returns (EVENT TIME-INFO MINUTES-UNTIL) or nil if none found."
+  ...)
+#+end_src
+
+**** New Function: ~chime--build-upcoming-events-list~
+#+begin_src elisp
+(defun chime--build-upcoming-events-list (events now tooltip-lookahead-minutes
+                                                show-all-day-p)
+  "Build list of upcoming events within tooltip lookahead.
+Returns sorted, deduplicated list of (EVENT TIME-INFO MINUTES) tuples."
+  ...)
+#+end_src
+
+**** Updated Function: ~chime--update-modeline~
+#+begin_src elisp
+(defun chime--update-modeline (events)
+  "Update modeline with next upcoming event from EVENTS.
+Orchestrates filtering, finding soonest, and updating display."
+  (if (not chime-enable-modeline)
+      (progn
+        (setq chime-modeline-string nil)
+        (setq chime--upcoming-events nil))
+    (let* ((now (current-time))
+           (upcoming (chime--build-upcoming-events-list events now ...))
+           (soonest (chime--find-soonest-modeline-event events now ...)))
+      (setq chime--upcoming-events upcoming)
+      (setq chime-modeline-string (when soonest ...))
+      (force-mode-line-update))))
+#+end_src
+
+*** Testing Strategy
+1. Keep all existing tests passing (regression prevention)
+2. Add unit tests for each new function
+3. Test edge cases in isolation
+4. Integration tests verify end-to-end behavior
+
+*** Implementation Steps
+1. Extract ~chime--filter-events-in-window~ with tests
+2. Extract ~chime--find-soonest-modeline-event~ with tests
+3. Extract ~chime--build-upcoming-events-list~ with tests
+4. Update ~chime--update-modeline~ to use new functions
+5. Run full test suite
+6. Update documentation
+
+*** Success Criteria
+- [ ] All existing tests pass
+- [ ] Each new function has unit tests
+- [ ] ~chime--update-modeline~ is < 30 lines
+- [ ] Code is more maintainable
+- [ ] No performance degradation
+
+** Adding Section Headers
+:PROPERTIES:
+:ID: add-section-headers
+:PRIORITY: B
+:END:
+
+*** Proposed Section Structure
+#+begin_example
+;;; chime.el --- CHIME Heralds Imminent Events
+
+;;; Commentary:
+...
+
+;;; Code:
+
+;;;; Dependencies
+(require statements)
+
+;;;; Customization Variables
+(defcustom declarations)
+
+;;;; Internal State
+(defvar declarations)
+
+;;;; Time/Date Utilities
+;; Functions for parsing, converting, comparing timestamps
+(defun chime--timestamp-parse ...)
+(defun chime--convert-12hour-to-24hour ...)
+(defun chime--time= ...)
+(defun chime--time-left ...)
+(defun chime--today ...)
+(defun chime-get-hours-minutes-from-time ...)
+(defun chime-set-hours-minutes-for-time ...)
+(defun chime-get-minutes-into-day ...)
+(defun chime--has-timestamp ...)
+(defun chime--get-hh-mm-from-org-time-string ...)
+
+;;;; Event Extraction & Parsing
+;; Functions for reading events from org files
+(defun chime--extract-time ...)
+(defun chime--extract-title ...)
+(defun chime--sanitize-title ...)
+(defun chime--truncate-title ...)
+(defun chime--gather-info ...)
+
+;;;; Event Filtering & Predicates
+;; Whitelist/blacklist logic
+(defun chime--whitelist-predicates ...)
+(defun chime--blacklist-predicates ...)
+(defun chime--apply-whitelist ...)
+(defun chime--apply-blacklist ...)
+(defun chime-done-keywords-predicate ...)
+(defun chime-environment-regex ...)
+(defun chime--get-tags ...)
+
+;;;; All-Day Event Handling
+;; Special logic for all-day/day-wide events
+(defun chime--filter-day-wide-events ...)
+(defun chime-display-as-day-wide-event ...)
+(defun chime-event-has-any-day-wide-timestamp ...)
+(defun chime-current-time-is-day-wide-time ...)
+(defun chime-current-time-matches-time-of-day-string ...)
+(defun chime-day-wide-notifications ...)
+(defun chime--day-wide-notification-text ...)
+(defun chime-event-is-today ...)
+(defun chime-event-within-advance-notice-window ...)
+
+;;;; Modeline & UI
+;; Display formatting, tooltip generation
+(defun chime--deduplicate-events-by-title ...)
+(defun chime--update-modeline ...)
+(defun chime--make-tooltip ...)
+(defun chime--format-event-for-tooltip ...)
+(defun chime--group-events-by-day ...)
+(defun chime--propertize-modeline-string ...)
+(defun chime--jump-to-event ...)
+(defun chime-refresh-modeline ...)
+
+;;;; Notification Logic
+;; Event checking and notification dispatch
+(defun chime--check-event ...)
+(defun chime-event-has-any-passed-time ...)
+(defun chime--timestamp-within-interval-p ...)
+(defun chime--extract-notication-intervals ...)
+(defun chime--notification-text ...)
+(defun chime--notifications ...)
+(defun chime--notify ...)
+(defun chime--process-notifications ...)
+
+;;;; Core Lifecycle
+;; Main loop, async handling, mode definition
+(defun chime--log-silently ...)
+(defun chime--retrieve-events ...)
+(defun chime--fetch-and-process ...)
+(defun chime-check ...)
+(defun chime--start ...)
+(defun chime--stop ...)
+(define-minor-mode chime-mode ...)
+
+(provide 'chime)
+;;; chime.el ends here
+#+end_example
+
+*** Benefits
+- imenu navigation works out of the box
+- outline-mode can collapse/expand sections
+- Clear structure at a glance
+- Easy to find related functions
+- No runtime overhead
+- No deployment complexity
+
+** Test Data Builders
+:PROPERTIES:
+:ID: test-data-builders
+:PRIORITY: B
+:END:
+
+*** Current Test Duplication
+Integration tests repeat setup patterns:
+- Creating test events with title and timestamps
+- Setting up chime configuration
+- Creating org files with test data
+- Configuring lookahead windows
+
+*** Proposed Test Utilities
+
+**** testutil-chime.el
+New file for chime-specific test utilities.
+
+***** ~test-make-event~
+#+begin_src elisp
+(defun test-make-event (title time-str &optional marker)
+  "Build a complete test event alist with TITLE and TIME-STR.
+Optionally attach MARKER.
+Returns event in same format as chime--gather-info."
+  (let* ((parsed-time (chime--timestamp-parse time-str))
+         (times (list (cons time-str parsed-time))))
+    `((title . ,title)
+      (times . ,times)
+      (marker . ,marker)
+      (marker-pos . ,(when marker (marker-position marker)))
+      (marker-file . ,(when marker (buffer-file-name
+                                     (marker-buffer marker)))))))
+#+end_src
+
+***** ~test-with-chime-config~
+#+begin_src elisp
+(defmacro test-with-chime-config (modeline-lookahead tooltip-lookahead &rest body)
+  "Execute BODY with temporary chime configuration.
+Restores original values after execution."
+  (declare (indent 2))
+  `(let ((orig-modeline chime-modeline-lookahead-minutes)
+         (orig-tooltip chime-tooltip-lookahead-hours))
+     (unwind-protect
+         (progn
+           (setq chime-modeline-lookahead-minutes ,modeline-lookahead)
+           (setq chime-tooltip-lookahead-hours ,tooltip-lookahead)
+           ,@body)
+       (setq chime-modeline-lookahead-minutes orig-modeline)
+       (setq chime-tooltip-lookahead-hours orig-tooltip))))
+#+end_src
+
+***** ~test-org-file-with-events~
+#+begin_src elisp
+(defmacro test-org-file-with-events (&rest event-specs)
+  "Create temp org file with events specified by EVENT-SPECS.
+Each spec is (TITLE TIMESTAMP &optional PROPERTIES).
+Sets file as org-agenda-files and returns file path."
+  `(let ((content (concat
+                   ,@(mapcar (lambda (spec)
+                              `(format "* %s\n%s\n%s\n\n"
+                                       ,(car spec)
+                                       (or ,(caddr spec) "")
+                                       ,(cadr spec)))
+                            event-specs))))
+     (test-integration-recurring--create-org-file content)))
+#+end_src
+
+*** Usage Examples
+
+**** Before (current)
+#+begin_src elisp
+(ert-deftest test-something ()
+  (let* ((now (test-time-now))
+         (event-time (test-time-tomorrow-at 14 0))
+         (timestamp (test-timestamp-string event-time))
+         (content (format "* Meeting\n%s\n" timestamp))
+         (file (test-integration-recurring--create-org-file content)))
+    (test-integration-recurring-setup)
+    (setq chime-modeline-lookahead-minutes 1440)
+    (setq chime-tooltip-lookahead-hours 24)
+    ...))
+#+end_src
+
+**** After (with builders)
+#+begin_src elisp
+(ert-deftest test-something ()
+  (test-with-chime-config 1440 24
+    (test-org-file-with-events
+     ("Meeting" (test-timestamp-string (test-time-tomorrow-at 14 0))))
+    (let ((events (test-integration-recurring--run-agenda-and-gather-events 2)))
+      ...)))
+#+end_src
+
+* Knowledge Base
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** Ecosystem Comparisons
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Single-File Packages (Similar Size)
+| Package      | Lines | Files | Notes                        |
+|--------------+-------+-------+------------------------------|
+| org-gcal     | 2,187 |     4 | Main file + generic-id       |
+| org-contacts | 1,389 |     1 | Single file                  |
+| nerd-icons   | 1,392 |     3 | Main + faces + data          |
+| org-drill    | 3,855 |     1 | Single file (larger)         |
+| chime        | 1,465 |     2 | Main + debug (our package)   |
+
+*Observation*: Single file is standard for packages under ~2,000 lines.
+
+*** Multi-File Packages
+| Package       | Lines (total) | Files | Main File | Notes                  |
+|---------------+---------------+-------+-----------+------------------------|
+| magit         |       ~30,000 |    48 |       811 | Subsystems (diff, log) |
+| org-mode      |     ~100,000+ |   100 |         - | Massive, decades old   |
+| org-roam      |       ~10,000 |    15 |         - | Database-backed        |
+
+*Observation*: Multi-file makes sense for large packages (>5,000 lines) with clear subsystems.
+
+** Performance Characteristics
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Time Breakdown (Typical Check Cycle)
+- ~org-agenda-list~ expansion: 90%+ of time
+  - Parses all org files
+  - Expands recurring events
+  - Applies agenda filters
+  - *This is org-mode code, not ours*
+
+- Async process overhead: ~5%
+  - Spawning subprocess
+  - Serializing data
+  - Necessary for non-blocking
+
+- Our code: ~5%
+  - Event filtering
+  - Modeline formatting
+  - Tooltip generation
+  - *Negligible impact*
+
+*** Why We Don't Need to Optimize Our Code
+1. *Not the bottleneck* - org-agenda-list dominates
+2. *Small data sets* - Typically <100 events
+3. *Infrequent execution* - Once per minute
+4. *Fast operations* - Alist lookups, simple comparisons
+
+*** Premature Optimizations to Avoid
+- Caching parsed timestamps (invalidation complexity)
+- Hash tables for event lookup (alists are fine for <100 items)
+- Avoiding re-sorts (sorting 50 items is microseconds)
+- Pre-computing values (adds state management complexity)
+
+** State Management Patterns
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Current Global State (Works Well)
+#+begin_src elisp
+(defvar chime--timer nil
+  "Timer object for periodic checking.")
+
+(defvar chime--process nil
+  "Currently running async process, or nil.")
+
+(defvar chime--last-check-time nil
+  "Time of last successful check (for rate limiting).")
+
+(defvar chime--upcoming-events nil
+  "Cached list of upcoming events for tooltip.
+Each element is (EVENT TIME-INFO MINUTES-UNTIL).")
+
+(defvar chime-modeline-string nil
+  "Current modeline string to display.")
+#+end_src
+
+*** Why This Works
+1. *Clear ownership* - Each variable has single purpose
+2. *Simple lifecycle* - Set on start, cleared on stop
+3. *No contention* - Single-threaded access (async is callback)
+4. *Easy to debug* - Can inspect with M-: chime--timer
+5. *Functional core* - Most functions are pure, state at edges
+
+*** State Flow Diagram
+#+begin_example
+Timer fires → chime-check
+                ↓
+         chime--fetch-and-process (async)
+                ↓
+         Callback with events
+                ↓
+         chime--process-notifications (side effect: notify)
+                ↓
+         chime--update-modeline (side effect: update display)
+                ↓
+         Sets: chime-modeline-string
+               chime--upcoming-events
+#+end_example
+
+** Testing Patterns
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Why Tests Are Split But Code Isn't
+*Tests*: 27 files
+- Tests are independent (don't call each other)
+- Each tests one function or scenario
+- Benefit from isolation
+- Easy to run selectively
+
+*Code*: 1 main file
+- Functions are interdependent (call each other frequently)
+- Cohesive functionality
+- Benefit from being together
+- Single unit to load
+
+*** Test Organization Strategy
+#+begin_example
+tests/
+├── test-chime-<function>.el        # Unit test per function
+├── test-integration-<scenario>.el  # Integration test per workflow
+├── testutil-general.el             # File/directory utilities
+├── testutil-time.el                # Dynamic timestamp generation
+└── testutil-chime.el               # (proposed) Chime-specific builders
+#+end_example
+
+*** Testing Principles Applied
+1. *No hardcoded dates* - Use testutil-time.el for dynamic timestamps
+2. *Setup/teardown* - Every test file has setup/teardown methods
+3. *Isolated* - Tests don't depend on each other
+4. *Fast* - Unit tests run in milliseconds
+5. *Comprehensive* - Normal, boundary, and error cases
+
+** Async Design Rationale
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Why Async?
+org-agenda-list is slow (can take 1-5 seconds for large org files).
+Running synchronously would:
+- Freeze Emacs UI during check
+- Block user from typing
+- Feel laggy and unresponsive
+
+*** How It Works
+1. Timer fires every 60 seconds
+2. ~chime-check~ spawns async subprocess
+3. Subprocess runs org-agenda-list (in background)
+4. Main Emacs continues being responsive
+5. Callback receives events and updates display
+
+*** Trade-offs
+*Benefits*:
+- Non-blocking UI ✓
+- Responsive Emacs ✓
+- Clean separation (subprocess isolation) ✓
+
+*Costs*:
+- Subprocess spawning overhead (~100ms)
+- Data serialization overhead
+- More complex code (callbacks)
+
+*Verdict*: Worth it. User experience is dramatically better.
+
+** Function Categorization
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+*** Time/Date Utilities (13 functions)
+Pure functions for timestamp operations. Low coupling.
+- ~chime--timestamp-parse~
+- ~chime--convert-12hour-to-24hour~
+- ~chime--time=~
+- ~chime--time-left~
+- ~chime--today~
+- ~chime-get-hours-minutes-from-time~
+- ~chime-set-hours-minutes-for-time~
+- ~chime-get-minutes-into-day~
+- ~chime--has-timestamp~
+- ~chime--get-hh-mm-from-org-time-string~
+- ~chime-event-is-today~
+- ~chime-event-has-any-passed-time~
+- ~chime--timestamp-within-interval-p~
+
+*** Event Extraction (5 functions)
+Reading from org files. Tightly coupled to org-mode.
+- ~chime--extract-time~
+- ~chime--extract-title~
+- ~chime--sanitize-title~
+- ~chime--truncate-title~
+- ~chime--gather-info~
+
+*** Filtering & Predicates (7 functions)
+Whitelist/blacklist logic. Could be standalone module.
+- ~chime--whitelist-predicates~
+- ~chime--blacklist-predicates~
+- ~chime--apply-whitelist~
+- ~chime--apply-blacklist~
+- ~chime-done-keywords-predicate~
+- ~chime-environment-regex~
+- ~chime--get-tags~
+
+*** All-Day Event Handling (8 functions)
+Special case logic. Natural module boundary.
+- ~chime--filter-day-wide-events~
+- ~chime-display-as-day-wide-event~
+- ~chime-event-has-any-day-wide-timestamp~
+- ~chime-current-time-is-day-wide-time~
+- ~chime-current-time-matches-time-of-day-string~
+- ~chime-day-wide-notifications~
+- ~chime--day-wide-notification-text~
+- ~chime-event-within-advance-notice-window~
+
+*** UI/Modeline (8 functions)
+Display formatting. Natural boundary.
+- ~chime--deduplicate-events-by-title~
+- ~chime--update-modeline~
+- ~chime--make-tooltip~
+- ~chime--format-event-for-tooltip~
+- ~chime--group-events-by-day~
+- ~chime--propertize-modeline-string~
+- ~chime--jump-to-event~
+- ~chime-refresh-modeline~
+
+*** Notifications (6 functions)
+Event checking and notification dispatch.
+- ~chime--check-event~
+- ~chime--extract-notication-intervals~
+- ~chime--notification-text~
+- ~chime--notifications~
+- ~chime--notify~
+- ~chime--process-notifications~
+
+*** Core Lifecycle (6 functions)
+Timer, async, main loop. Should stay in main file.
+- ~chime--log-silently~
+- ~chime--retrieve-events~
+- ~chime--fetch-and-process~
+- ~chime-check~
+- ~chime--start~
+- ~chime--stop~
+- ~chime-mode~ (minor mode definition)
+
+* Decision Log
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** [2025-10-29] Decision: Keep Single File Architecture
+:PROPERTIES:
+:DECISION_DATE: [2025-10-29 Tue]
+:DECISION_MAKER: Architecture Review
+:STATUS: Approved
+:END:
+
+*** Context
+Evaluated whether chime.el at 1,465 lines should be split into multiple files.
+
+*** Decision
+Keep as single file with improved internal organization (section headers).
+
+*** Rationale
+1. Size is appropriate (compare: org-gcal 2,187 lines, single file)
+2. Functions are highly interconnected (hard boundaries)
+3. No user benefit (loads as one unit)
+4. Test organization is already good (27 files)
+5. Adds complexity without value
+
+*** Alternatives Considered
+- Split into 5-6 module files (rejected - too much overhead)
+- Extract time utilities (rejected - low cohesion benefit)
+- Extract all-day handling (rejected - high coupling to main)
+
+*** Consequences
++ Simple deployment (one file to load)
++ Easy to search/grep
++ Clear mental model
+- Requires good internal organization
+- Need section headers for navigation
+
+** [2025-10-29] Decision: Refactor ~chime--update-modeline~
+:PROPERTIES:
+:DECISION_DATE: [2025-10-29 Tue]
+:DECISION_MAKER: Architecture Review
+:STATUS: Approved
+:PRIORITY: High
+:END:
+
+*** Context
+Function is 86 lines with multiple responsibilities. Recently touched for bug fix (recurring events). Good time to refactor.
+
+*** Decision
+Extract 4-5 focused functions from ~chime--update-modeline~.
+
+*** Rationale
+1. Most complex function in codebase
+2. Multiple responsibilities (filter, find, deduplicate, sort, format)
+3. Hard to test individual pieces
+4. Recently modified (good time to improve)
+5. Low risk with comprehensive test coverage
+
+*** Success Criteria
+- All existing tests pass
+- Each new function has unit tests
+- Main function < 30 lines
+- Improved maintainability
+
+** [2025-10-29] Decision: Add Section Headers
+:PROPERTIES:
+:DECISION_DATE: [2025-10-29 Tue]
+:DECISION_MAKER: Architecture Review
+:STATUS: Approved
+:PRIORITY: Medium
+:END:
+
+*** Context
+1,465 line file lacks internal organization. Hard to navigate.
+
+*** Decision
+Add ;;;; section headers following Emacs conventions.
+
+*** Rationale
+1. Zero runtime overhead (comments only)
+2. imenu navigation support
+3. outline-mode support
+4. Clear structure at a glance
+5. Low effort (~30 minutes)
+
+*** Sections
+1. Dependencies
+2. Customization
+3. Time/Date Utilities
+4. Event Filtering
+5. All-Day Event Handling
+6. Modeline & UI
+7. Notifications
+8. Core Lifecycle
+
+** [2025-10-29] Decision: Do Not Migrate to cl-defstruct
+:PROPERTIES:
+:DECISION_DATE: [2025-10-29 Tue]
+:DECISION_MAKER: Architecture Review
+:STATUS: Rejected
+:END:
+
+*** Context
+Events currently use alists. Could migrate to cl-defstruct for type safety.
+
+*** Decision
+Keep alist-based events. Do not migrate to cl-defstruct.
+
+*** Rationale
+1. Current approach works fine (no bugs related to structure)
+2. High effort (many access points to update)
+3. Medium risk (need careful migration)
+4. Modest benefit (type safety nice but not critical)
+5. No performance benefit
+
+*** Alternatives
+- Add validation functions if errors occur
+- Document expected keys in comments
+- Use accessor functions (can migrate gradually if needed)
+
+** [2025-10-29] Decision: Create Test Data Builders
+:PROPERTIES:
+:DECISION_DATE: [2025-10-29 Tue]
+:DECISION_MAKER: Architecture Review
+:STATUS: Approved
+:PRIORITY: Medium
+:END:
+
+*** Context
+Integration tests have setup duplication. Could benefit from builder pattern.
+
+*** Decision
+Create testutil-chime.el with test data builders.
+
+*** Rationale
+1. Reduces test duplication
+2. Makes tests more readable
+3. Easier to write new tests
+4. Low effort to extract existing patterns
+5. Zero risk (test-only code)
+
+*** Functions to Create
+- ~test-make-event~ (build event alists)
+- ~test-with-chime-config~ (temporary configuration)
+- ~test-org-file-with-events~ (create test org files)
+
+* References & Resources
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** Related Documentation
+- [[file:IMPLEMENTATION_NOTES.org][Implementation Notes]]
+- [[file:ELISP_LINT_SETUP.org][Elisp Lint Setup]]
+- [[file:DEBUG_EVENT_LOADING.org][Debug Event Loading]]
+
+** Code Locations
+- Main package: [[file:../chime.el][chime.el]]
+- Debug utilities: [[file:../chime-debug.el][chime-debug.el]]
+- Tests: [[file:../tests/][tests/]]
+
+** External References
+- [[https://www.gnu.org/software/emacs/manual/html_node/elisp/][Emacs Lisp Reference Manual]]
+- [[https://github.com/bbatsov/emacs-lisp-style-guide][Emacs Lisp Style Guide]]
+- [[https://github.com/magit/magit][Magit (multi-file example)]]
+- [[https://github.com/kidd/org-gcal.el][org-gcal (single-file example)]]
+
+* Appendix: Code Metrics
+:PROPERTIES:
+:CREATED: [2025-10-29 Tue]
+:END:
+
+** chime.el Statistics
+- Total lines: 1,465
+- Total functions: 53
+- Largest function: ~chime--update-modeline~ (86 lines)
+- Average function size: ~27 lines
+- Defcustom count: 18
+- Defvar count: 5
+
+** Test Statistics
+- Test files: 27
+- Total tests: 339
+- Unit tests: ~300
+- Integration tests: ~39
+- Test utilities: 2 files (general, time)
+- Test coverage: Comprehensive (all major functions)
+
+** Comparison with Similar Packages
+| Package      | Main File | Total Files | Total Lines | Functions |
+|--------------+-----------+-------------+-------------+-----------|
+| chime        |     1,465 |           2 |      ~1,700 |        53 |
+| org-gcal     |     2,187 |           4 |      ~2,500 |        ~60 |
+| org-contacts |     1,389 |           1 |       1,389 |        ~40 |
+| org-drill    |     3,855 |           1 |       3,855 |       ~100 |
+
+*Verdict*: chime.el is appropriately sized for a single-file package.

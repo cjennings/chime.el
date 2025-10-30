@@ -1,0 +1,274 @@
+* elisp-lint Installation and Setup
+:PROPERTIES:
+:CUSTOM_ID: elisp-lint-installation-and-setup
+:END:
+*Purpose:* Comprehensive linting for Emacs Lisp code, including
+indentation, whitespace, and package metadata validation.
+
+** Installation
+:PROPERTIES:
+:CUSTOM_ID: installation
+:END:
+*** Option 1: Via MELPA (Recommended)
+:PROPERTIES:
+:CUSTOM_ID: option-1-via-melpa-recommended
+:END:
+1. *Add MELPA to your Emacs config* (if not already present):
+
+   #+begin_src elisp
+   (require 'package)
+   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+   (package-initialize)
+   #+end_src
+
+2. *Install elisp-lint:*
+
+   #+begin_src elisp
+   M-x package-refresh-contents
+   M-x package-install RET elisp-lint RET
+   #+end_src
+
+*** Option 2: Manual Installation
+:PROPERTIES:
+:CUSTOM_ID: option-2-manual-installation
+:END:
+1. *Clone the repository:*
+
+   #+begin_src sh
+   cd ~/.emacs.d/
+   git clone https://github.com/gonewest818/elisp-lint.git
+   #+end_src
+
+2. *Load in your Emacs config:*
+
+   #+begin_src elisp
+   (add-to-list 'load-path "~/.emacs.d/elisp-lint")
+   (require 'elisp-lint)
+   #+end_src
+
+** Dependencies
+:PROPERTIES:
+:CUSTOM_ID: dependencies
+:END:
+elisp-lint requires: - *dash.el* - Installed automatically via package
+manager
+
+** Command-Line Usage
+:PROPERTIES:
+:CUSTOM_ID: command-line-usage
+:END:
+*** Basic Validation
+:PROPERTIES:
+:CUSTOM_ID: basic-validation
+:END:
+Validate all .el files in current directory:
+
+#+begin_src sh
+emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch *.el
+#+end_src
+
+Validate specific files:
+
+#+begin_src sh
+emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch chime.el tests/test-*.el
+#+end_src
+
+*** Disabling Specific Checks
+:PROPERTIES:
+:CUSTOM_ID: disabling-specific-checks
+:END:
+Disable indentation check:
+
+#+begin_src sh
+emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch --no-indent *.el
+#+end_src
+
+Disable byte-compile check:
+
+#+begin_src sh
+emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch --no-byte-compile *.el
+#+end_src
+
+Available validators to disable: - =--no-indent= - Skip indentation
+validation - =--no-fill-column= - Skip line length validation -
+=--no-trailing-whitespace= - Skip whitespace validation -
+=--no-byte-compile= - Skip byte compilation - =--no-package-lint= - Skip
+package metadata validation - =--no-checkdoc= - Skip documentation
+validation
+
+*** Multiple Disabled Checks
+:PROPERTIES:
+:CUSTOM_ID: multiple-disabled-checks
+:END:
+#+begin_src sh
+emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch \
+  --no-byte-compile --no-checkdoc *.el
+#+end_src
+
+** Configuration
+:PROPERTIES:
+:CUSTOM_ID: configuration
+:END:
+*** Project-Level Configuration
+:PROPERTIES:
+:CUSTOM_ID: project-level-configuration
+:END:
+Create =.dir-locals.el= in project root:
+
+#+begin_src elisp
+((emacs-lisp-mode . ((fill-column . 80)
+                     (indent-tabs-mode . nil)
+                     (elisp-lint-ignored-validators . ("byte-compile"))
+                     (elisp-lint-indent-specs . ((describe . 1)
+                                                 (it . 1))))))
+#+end_src
+
+This configuration: - Sets line length to 80 characters - Uses spaces
+instead of tabs - Disables byte-compile validator - Defines custom
+indentation for =describe= and =it= macros
+
+*** File-Level Configuration
+:PROPERTIES:
+:CUSTOM_ID: file-level-configuration
+:END:
+Add to top of .el file:
+
+#+begin_src elisp
+;; -*- fill-column: 80; indent-tabs-mode: nil; -*-
+#+end_src
+
+** Integrating with chime.el Development
+:PROPERTIES:
+:CUSTOM_ID: integrating-with-chime.el-development
+:END:
+*** Add to Makefile
+:PROPERTIES:
+:CUSTOM_ID: add-to-makefile
+:END:
+Add =lint= target to =tests/Makefile=:
+
+#+begin_src makefile
+# Comprehensive linting with elisp-lint (if installed)
+lint:
+    @echo "$(YELLOW)Running elisp-lint...$(NC)"
+    @if command -v elisp-lint >/dev/null 2>&1; then \
+        emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch \
+            --no-checkdoc ../chime.el test-*.el testutil-*.el; \
+    else \
+        echo "$(RED)elisp-lint not found. Install via MELPA or see ELISP_LINT_SETUP.md$(NC)"; \
+        exit 1; \
+    fi
+#+end_src
+
+*** Use in CI/CD
+:PROPERTIES:
+:CUSTOM_ID: use-in-cicd
+:END:
+Add to GitHub Actions workflow:
+
+#+begin_src yaml
+- name: Install elisp-lint
+  run: |
+    emacs --batch --eval "(progn
+      (require 'package)
+      (add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)
+      (package-initialize)
+      (package-refresh-contents)
+      (package-install 'elisp-lint))"
+
+- name: Lint Emacs Lisp
+  run: |
+    emacs -Q --batch -l elisp-lint.el -f elisp-lint-files-batch *.el tests/*.el
+#+end_src
+
+** What elisp-lint Checks
+:PROPERTIES:
+:CUSTOM_ID: what-elisp-lint-checks
+:END:
+1. *Indentation* - Verifies code is indented according to
+   emacs-lisp-mode
+2. *Tabs vs Spaces* - Ensures consistent use based on =indent-tabs-mode=
+3. *Trailing Whitespace* - Detects lines with trailing whitespace
+4. *Fill Column* - Warns about lines exceeding configured width
+5. *Byte Compilation* - Checks for compilation warnings/errors
+6. *Package Metadata* - Validates package headers (if present)
+7. *Checkdoc* - Validates docstring format and style
+
+** Comparison with Built-in Validation
+:PROPERTIES:
+:CUSTOM_ID: comparison-with-built-in-validation
+:END:
+*** Current =make validate= (Built-in)
+:PROPERTIES:
+:CUSTOM_ID: current-make-validate-built-in
+:END:
+- ✓ Fast (no dependencies)
+- ✓ Checks parentheses balance
+- ✓ Basic byte-compile check
+- ✗ No indentation checking
+- ✗ No whitespace checking
+- ✗ No documentation validation
+
+*** =elisp-lint= (If Installed)
+:PROPERTIES:
+:CUSTOM_ID: elisp-lint-if-installed
+:END:
+- ✓ All checks from built-in
+- ✓ Comprehensive indentation validation
+- ✓ Whitespace and formatting checks
+- ✓ Documentation style validation
+- ✗ Requires installation
+- ✗ Slightly slower
+
+** Recommendation
+:PROPERTIES:
+:CUSTOM_ID: recommendation
+:END:
+Use *both*: 1. *=make validate=* - Quick syntax check during development
+(always available) 2. *=elisp-lint=* - Comprehensive linting before
+major commits/releases (optional but recommended)
+
+The pre-commit hook uses =make validate= for speed and reliability,
+while =elisp-lint= can be run manually for deeper analysis.
+
+** Troubleshooting
+:PROPERTIES:
+:CUSTOM_ID: troubleshooting
+:END:
+*** "Cannot open load file: elisp-lint"
+:PROPERTIES:
+:CUSTOM_ID: cannot-open-load-file-elisp-lint
+:END:
+elisp-lint is not installed. Install via MELPA or manually (see
+Installation above).
+
+*** "Package 'dash' is not available"
+:PROPERTIES:
+:CUSTOM_ID: package-dash-is-not-available
+:END:
+Update package archives:
+
+#+begin_src elisp
+M-x package-refresh-contents
+#+end_src
+
+Then reinstall elisp-lint.
+
+*** False Positives on Indentation
+:PROPERTIES:
+:CUSTOM_ID: false-positives-on-indentation
+:END:
+Some macros have non-standard indentation. Configure in
+=.dir-locals.el=:
+
+#+begin_src elisp
+(elisp-lint-indent-specs . ((my-custom-macro . 1)))
+#+end_src
+
+** Resources
+:PROPERTIES:
+:CUSTOM_ID: resources
+:END:
+- *GitHub Repository:* https://github.com/gonewest818/elisp-lint
+- *MELPA Package:* https://melpa.org/#/elisp-lint
+- *Related Tool (package-lint):* https://github.com/purcell/package-lint

@@ -1,0 +1,746 @@
+* All-Day Event Enhancement Implementation Notes
+:PROPERTIES:
+:CUSTOM_ID: all-day-event-enhancement-implementation-notes
+:END:
+** Overview
+:PROPERTIES:
+:CUSTOM_ID: overview
+:END:
+This document contains instructions for implementing all-day event
+enhancements to chime.el, including lessons learned from the initial
+implementation attempt.
+
+** Current State (As of 2025-10-28)
+:PROPERTIES:
+:CUSTOM_ID: current-state-as-of-2025-10-28
+:END:
+*** What Works Currently
+:PROPERTIES:
+:CUSTOM_ID: what-works-currently
+:END:
+- ✅ All-day event detection via =chime--has-timestamp= (checks for time
+  component)
+- ✅ Day-wide event filtering via =chime--filter-day-wide-events=
+- ✅ Basic day-wide notifications at configured times (but default is
+  =nil= so disabled)
+- ✅ Root bug fixed: =org-agenda-list= now uses dynamic span calculation
+- ✅ Comprehensive test suite created:
+  =tests/test-chime-all-day-events.el= (18 tests)
+- ✅ Regression test exists: =test-gcal-regression-agenda-span-bug=
+
+*** What Needs Implementation
+:PROPERTIES:
+:CUSTOM_ID: what-needs-implementation
+:END:
+1. *New customization options* (3 defcustoms)
+2. *New helper function* for advance notice window checking
+3. *Updated notification text function* to handle "tomorrow", "in N
+   days"
+4. *Updated modeline function* to respect tooltip filtering setting
+5. *Careful parenthesis matching* in nested expressions
+
+--------------
+
+** Existing All-Day Event Functionality
+:PROPERTIES:
+:CUSTOM_ID: existing-all-day-event-functionality
+:END:
+*** Detection
+:PROPERTIES:
+:CUSTOM_ID: detection
+:END:
+*Function:* =chime--has-timestamp= - *Location:* chime.el (search for
+"defun chime--has-timestamp") - *Purpose:* Checks if a timestamp string
+has a time component (HH:MM) - *Returns:* =t= if time component exists,
+=nil= for all-day events - *Example:* - =<2025-12-19 Fri 10:00>= →
+returns =t= (timed) - =<2025-12-19 Fri>= → returns =nil= (all-day)
+
+*Implementation:*
+
+#+begin_src elisp
+(defun chime--has-timestamp (org-time-string)
+  "Check if ORG-TIME-STRING contains a time component."
+  (save-match-data
+    (when (string-match org-ts-regexp org-time-string)
+      (match-beginning 7))))  ; Group 7 is the time component
+#+end_src
+
+*** Filtering
+:PROPERTIES:
+:CUSTOM_ID: filtering
+:END:
+*Function:* =chime--filter-day-wide-events= - *Location:* chime.el line
+~505 - *Purpose:* Filters out all-day events from a list of timestamps -
+*Returns:* List containing only timed events - *Usage:* Used in modeline
+to show only time-sensitive events
+
+*Implementation:*
+
+#+begin_src elisp
+(defun chime--filter-day-wide-events (times)
+  "Filter out day-wide events (those without specific times) from TIMES."
+  (--filter (chime--has-timestamp (car it)) times))
+#+end_src
+
+*** Current Notification System
+:PROPERTIES:
+:CUSTOM_ID: current-notification-system
+:END:
+*Function:* =chime-day-wide-alert-times= - *Type:* Customization
+variable - *Default:* =nil= (notifications disabled by default) -
+*Purpose:* List of times (e.g., '("08:00")) when to check for all-day
+events - *Behavior:* Only notifies for events happening TODAY
+
+*Function:* =chime-display-as-day-wide-event= - *Location:* chime.el
+line ~524 - *Logic:* - Checks if event has any PAST timestamps (includes
+today) - Only shows events that are today or overdue - Does NOT handle
+future all-day events
+
+*Function:* =chime--day-wide-notification-text= - *Location:* chime.el
+line ~540 - *Current text:* "{title} is due or scheduled today" -
+*Limitation:* No support for "tomorrow" or "in N days"
+
+--------------
+
+** Problems Encountered During Implementation
+:PROPERTIES:
+:CUSTOM_ID: problems-encountered-during-implementation
+:END:
+*** 1. Parenthesis Matching Hell
+:PROPERTIES:
+:CUSTOM_ID: parenthesis-matching-hell
+:END:
+*Issue:* Complex nested expressions with multiple closing parens led to
+syntax errors.
+
+*Specific Problem Areas:* - =chime--day-wide-notification-text=
+function - Has nested =let*=, =cond=, =--min=, =when-let*= forms - Easy
+to lose track of which closing paren belongs to which form - Error at
+line 666 during first attempt
+
+*Solution:* - Build expressions incrementally, testing compilation after
+each addition - Use emacs =check-parens= command: =(check-parens)= - Use
+sexp navigation to verify: =M-x check-parens= in interactive emacs -
+Count required closing parens BEFORE writing them:
+=(let*           <- needs 1 )     (cond         <- needs 1 )       (let*       <- needs 1 )         (--min    <- needs 1 )           (when-let* <- needs 1 )             (let  <- needs 1 )               (and <- needs 1 )=
+Total at deepest nesting: 7 levels
+
+*** 2. org-parse-time-string for All-Day Events
+:PROPERTIES:
+:CUSTOM_ID: org-parse-time-string-for-all-day-events
+:END:
+*Issue:* =chime--timestamp-parse= REQUIRES time component and returns
+=nil= for all-day events.
+
+*Workaround Needed:* - For all-day events, use =org-parse-time-string=
+directly (doesn't require time) - Extract year, month, day components
+manually - Build time with =(encode-time 0 0 0 day month year)= for
+start of day
+
+*Example:*
+
+#+begin_src elisp
+(let* ((parsed (org-parse-time-string "<2025-12-19 Fri>"))
+       (year (decoded-time-year parsed))    ; Emacs 27+
+       (month (decoded-time-month parsed))
+       (day (decoded-time-day parsed)))
+  (encode-time 0 0 0 day month year))  ; 2025-12-19 00:00:00
+#+end_src
+
+*Gotcha:* =decoded-time-*= accessors require Emacs 27+. For older
+versions:
+
+#+begin_src elisp
+(nth 5 parsed)  ; year
+(nth 4 parsed)  ; month
+(nth 3 parsed)  ; day
+#+end_src
+
+*** 3. Time Calculation for Advance Notice
+:PROPERTIES:
+:CUSTOM_ID: time-calculation-for-advance-notice
+:END:
+*Issue:* Need to calculate "days until event" accurately.
+
+*Key Points:* - Use =time-subtract= to get difference:
+=(time-subtract event-time now)= - Convert to seconds:
+=(float-time seconds-until)= - Divide by 86400 to get days:
+=(/ (float-time seconds-until) 86400.0)= - Use =ceiling= to round up:
+=(ceiling days)= - 1.1 days → 2 (notify "in 2 days") - 0.9 days → 1
+(notify "tomorrow")
+
+*Advance Notice Window Logic:*
+
+#+begin_example
+Now: Oct 28, 10:00
+chime-day-wide-advance-notice: 1
+
+Window:
+  Start: Oct 29, 00:00 (beginning of tomorrow)
+  End:   Oct 29, 23:59 (end of advance notice period)
+
+Events:
+  Oct 28 → NOT in window (today, handled separately)
+  Oct 29 → IN window (tomorrow)
+  Oct 30 → NOT in window (beyond 1 day advance)
+#+end_example
+
+*** 4. Test File Path Issues
+:PROPERTIES:
+:CUSTOM_ID: test-file-path-issues
+:END:
+*Issue:* When loading test files in batch mode with
+=-l ~/.emacs.d/init.el=, the =default-directory= changes.
+
+*Solution:* - Tests use =(expand-file-name "../chime.el")= which is
+relative to test file location - When running from command line, must be
+in tests/ directory - Alternative: Use absolute paths in command:
+=-l /full/path/to/test.el=
+
+*** 5. Tooltip vs Modeline Filtering
+:PROPERTIES:
+:CUSTOM_ID: tooltip-vs-modeline-filtering
+:END:
+*Tricky Logic:* Need TWO separate filtering paths in
+=chime--update-modeline=:
+
+#+begin_src elisp
+;; For each event:
+(let* ((all-times (cdr (assoc 'times event)))
+       ;; ALWAYS filter all-day from modeline (need specific time)
+       (times-for-modeline (chime--filter-day-wide-events all-times))
+       ;; Conditionally filter from tooltip based on user setting
+       (times-for-tooltip (if chime-tooltip-show-all-day-events
+                              all-times  ; Show everything
+                            (chime--filter-day-wide-events all-times))))
+  ;; Use times-for-tooltip when building tooltip
+  ;; Use times-for-modeline when finding soonest event for modeline display
+  ...)
+#+end_src
+
+*Why Complex:* - Modeline needs only timed events (urgent, actionable) -
+Tooltip can show all-day events (planning, awareness) - Same event might
+appear in tooltip but not modeline
+
+--------------
+
+** Implementation Checklist
+:PROPERTIES:
+:CUSTOM_ID: implementation-checklist
+:END:
+*** Step 1: Add Customization Variables
+:PROPERTIES:
+:CUSTOM_ID: step-1-add-customization-variables
+:END:
+*File:* chime.el *Location:* After line ~266 (in defcustom section)
+
+Add three new defcustoms: 1. =chime-tooltip-show-all-day-events=
+(boolean, default =t=) 2. =chime-day-wide-advance-notice= (integer or
+nil, default =nil=) 3. Update =chime-day-wide-alert-times= default from
+=nil= to ='("08:00")=
+
+*Testing:* After adding, verify:
+
+#+begin_src sh
+emacs --batch -Q -L deps -l chime.el --eval '(message "✓")' 2>&1 | grep "✓"
+#+end_src
+
+*** Step 2: Add Helper Function
+:PROPERTIES:
+:CUSTOM_ID: step-2-add-helper-function
+:END:
+*File:* chime.el *Location:* After
+=chime-event-has-any-day-wide-timestamp= (line ~530)
+
+Add: =chime-event-within-advance-notice-window= - Takes EVENT
+parameter - Returns =t= if any all-day timestamp is within advance
+notice window - Uses =org-parse-time-string= for all-day events - Checks
+time range: now < event-time < (now + N+1 days)
+
+*Testing:* Compile file again to check syntax.
+
+*** Step 3: Update Display Logic
+:PROPERTIES:
+:CUSTOM_ID: step-3-update-display-logic
+:END:
+*File:* chime.el *Location:* =chime-display-as-day-wide-event= (line
+~524)
+
+Change from:
+
+#+begin_src elisp
+(and (chime-event-has-any-passed-time event)
+     (or chime-show-any-overdue-with-day-wide-alerts
+         (chime-event-has-any-day-wide-timestamp event)))
+#+end_src
+
+To:
+
+#+begin_src elisp
+(or
+ ;; Same-day all-day events (original behavior)
+ (and (chime-event-has-any-passed-time event)
+      (or chime-show-any-overdue-with-day-wide-alerts
+          (chime-event-has-any-day-wide-timestamp event)))
+ ;; Advance notice for upcoming all-day events
+ (and chime-day-wide-advance-notice
+      (chime-event-has-any-day-wide-timestamp event)
+      (chime-event-within-advance-notice-window event)))
+#+end_src
+
+*** Step 4: Update Notification Text
+:PROPERTIES:
+:CUSTOM_ID: step-4-update-notification-text
+:END:
+*File:* chime.el *Location:* =chime--day-wide-notification-text= (line
+~540)
+
+*⚠️ MOST COMPLEX CHANGE - TAKE CARE WITH PARENS*
+
+Current (3 lines):
+
+#+begin_src elisp
+(defun chime--day-wide-notification-text (event)
+  "For given STR-INTERVAL list and EVENT get notification wording."
+  (format "%s is due or scheduled today"
+          (cdr (assoc 'title event))))
+#+end_src
+
+New (~40 lines with nested cond/let*/--min): - Check if =is-today= (use
+existing =chime-event-has-any-passed-time=) - Check if
+=is-advance-notice= (use new helper function) - Calculate =days-until=
+using =--min= over all timestamps - Format text: "tomorrow", "in 2
+days", "in N days"
+
+*Paren counting strategy:* 1. Write outer structure first (let*,
+cond) 2. Test compilation 3. Add inner advance-notice branch 4. Test
+compilation 5. Add days-until calculation 6. Test compilation 7. Add
+inner cond for text formatting
+
+*** Step 5: Update Modeline Function
+:PROPERTIES:
+:CUSTOM_ID: step-5-update-modeline-function
+:END:
+*File:* chime.el *Location:* =chime--update-modeline= (line ~695)
+
+Find the =dolist (event events)= loop around line ~715.
+
+*Current:* Single =all-times= variable used for both tooltip and
+modeline.
+
+*Change:* Split into two variables:
+
+#+begin_src elisp
+(let* ((all-times (cdr (assoc 'times event)))
+       (times-for-modeline (chime--filter-day-wide-events all-times))
+       (times-for-tooltip (if chime-tooltip-show-all-day-events
+                              all-times
+                            (chime--filter-day-wide-events all-times)))
+       ...)
+  ;; When iterating for tooltip, use times-for-tooltip
+  (dolist (time-info times-for-tooltip)
+    ...)
+  ;; When finding soonest for modeline, use times-for-modeline
+  (dolist (time-info times-for-modeline)
+    ...))
+#+end_src
+
+*Complexity:* This function has TWO nested dolist loops. Make sure to
+use the right variable in each loop.
+
+*** Step 6: Run Tests
+:PROPERTIES:
+:CUSTOM_ID: step-6-run-tests
+:END:
+*Commands:*
+
+#+begin_src sh
+cd /home/cjennings/code/chime.el/tests
+
+# Run new all-day event tests
+emacs --batch -Q \
+  -L /home/cjennings/.emacs.d/elpa/dash-2.20.0 \
+  -L /home/cjennings/.emacs.d/elpa/async-1.9.9 \
+  -L /home/cjennings/.emacs.d/elpa/alert-20250615.1845 \
+  -L .. \
+  -l test-chime-all-day-events.el \
+  --eval '(ert-run-tests-batch-and-exit)'
+
+# Run regression tests
+emacs --batch -l ~/.emacs.d/init.el \
+  -l test-chime-gcal-real-data.el \
+  --eval '(ert-run-tests-batch-and-exit)'
+#+end_src
+
+*Expected Results:* - All 18 tests in test-chime-all-day-events.el
+should pass - test-gcal-regression-agenda-span-bug should still pass -
+Real file tests should still pass
+
+--------------
+
+** Code Snippets for Reference
+:PROPERTIES:
+:CUSTOM_ID: code-snippets-for-reference
+:END:
+*** Complete chime-event-within-advance-notice-window Function
+:PROPERTIES:
+:CUSTOM_ID: complete-chime-event-within-advance-notice-window-function
+:END:
+#+begin_src elisp
+(defun chime-event-within-advance-notice-window (event)
+  "Check if EVENT has any day-wide timestamps within advance notice window.
+Returns t if any all-day timestamp is between tomorrow and N days from now,
+where N is `chime-day-wide-advance-notice'."
+  (when chime-day-wide-advance-notice
+    (let* ((now (current-time))
+           ;; Window: tomorrow through (now + N+1 days)
+           (window-end (time-add now (seconds-to-time
+                                      (* 86400 (1+ chime-day-wide-advance-notice)))))
+           (all-times (cdr (assoc 'times event))))
+      (--any
+       (when-let* ((timestamp-str (car it))
+                   ;; Only check all-day events (no time component)
+                   (is-all-day (not (chime--has-timestamp timestamp-str)))
+                   ;; Parse date portion
+                   (parsed (org-parse-time-string timestamp-str))
+                   (year (decoded-time-year parsed))
+                   (month (decoded-time-month parsed))
+                   (day (decoded-time-day parsed)))
+         ;; Convert to time at start of day (00:00:00)
+         (let ((event-time (encode-time 0 0 0 day month year)))
+           ;; Check if within window
+           (and (time-less-p now event-time)           ;; In future
+                (time-less-p event-time window-end)))) ;; Within window
+       all-times))))
+#+end_src
+
+*Paren count verification:* - Line 1: =(when= → needs 1 ) - Line 2:
+=(let*= → needs 1 ) - Line 6: =(--any= → needs 1 ) - Line 7:
+=(when-let*= → needs 1 ) - Line 15: =(let= → needs 1 ) - Line 17: =(and=
+→ needs 1 )
+
+Closing: - After =(time-less-p event-time window-end)= → 3 ) for and,
+let, when-let/ - After =all-times= → 3 ) for --any, let/, when
+
+Total: 6 closing parens split across 2 locations (3 + 3).
+
+*** Complete chime--day-wide-notification-text Function
+:PROPERTIES:
+:CUSTOM_ID: complete-chimeday-wide-notification-text-function
+:END:
+#+begin_src elisp
+(defun chime--day-wide-notification-text (event)
+  "Generate notification text for day-wide EVENT.
+Handles both same-day events and advance notices."
+  (let* ((title (cdr (assoc 'title event)))
+         (all-times (cdr (assoc 'times event)))
+         (is-today (chime-event-has-any-passed-time event))
+         (is-advance-notice (and chime-day-wide-advance-notice
+                                (chime-event-within-advance-notice-window event))))
+    (cond
+     ;; Event is today
+     (is-today
+      (format "%s is due or scheduled today" title))
+     ;; Event is within advance notice window
+     (is-advance-notice
+      ;; Calculate days until event
+      (let* ((now (current-time))
+             (days-until
+              (--min
+               (when-let* ((timestamp-str (car it))
+                          (is-all-day (not (chime--has-timestamp timestamp-str)))
+                          (parsed (org-parse-time-string timestamp-str))
+                          (year (decoded-time-year parsed))
+                          (month (decoded-time-month parsed))
+                          (day (decoded-time-day parsed)))
+                 (let* ((event-time (encode-time 0 0 0 day month year))
+                        (seconds-until (time-subtract event-time now))
+                        (days (/ (float-time seconds-until) 86400.0)))
+                   (ceiling days)))
+               all-times)))
+        (cond
+         ((= days-until 1)
+          (format "%s is tomorrow" title))
+         ((= days-until 2)
+          (format "%s is in 2 days" title))
+         (t
+          (format "%s is in %d days" title days-until)))))
+     ;; Fallback (shouldn't happen)
+     (t
+      (format "%s is due or scheduled today" title)))))
+#+end_src
+
+*Paren count verification:* - Line 4: =(let*= (outer) → needs 1 ) - Line
+9: =(cond= (outer) → needs 1 ) - Line 16: =(let*= (inner) → needs 1 ) -
+Line 18: =(--min= → needs 1 ) - Line 19: =(when-let*= → needs 1 ) - Line
+25: =(let*= (innermost) → needs 1 ) - Line 30: =(cond= (inner) → needs
+1 )
+
+Closing parens: - After line 28 =(ceiling days)= → 2 ) for let* and
+when-let/ - After line 29 =all-times= → 2 ) for --min and inner let/ -
+After line 35 last format → 2 ) for inner cond and advance-notice
+branch - After line 38 last format → 2 ) for outer cond and outer let*
+
+Total: 8 closing parens split across 4 locations (2+2+2+2).
+
+--------------
+
+** Defcustom Additions
+:PROPERTIES:
+:CUSTOM_ID: defcustom-additions
+:END:
+*** 1. Update chime-day-wide-alert-times
+:PROPERTIES:
+:CUSTOM_ID: update-chime-day-wide-alert-times
+:END:
+*Location:* Replace line 261-266
+
+#+begin_src elisp
+(defcustom chime-day-wide-alert-times '("08:00")
+  "List of time strings for day-wide event alerts.
+Each string specifies a time of day when day-wide events should trigger.
+Defaults to 08:00 (morning reminder for all-day events happening today).
+Set to nil to disable all-day event notifications entirely.
+
+Example: \\='(\"08:00\" \"17:00\") for morning and evening reminders."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(repeat string))
+#+end_src
+
+*** 2. Add chime-day-wide-advance-notice
+:PROPERTIES:
+:CUSTOM_ID: add-chime-day-wide-advance-notice
+:END:
+*Location:* After chime-show-any-overdue-with-day-wide-alerts (after
+line ~272)
+
+#+begin_src elisp
+(defcustom chime-day-wide-advance-notice nil
+  "Number of days before all-day events to show advance notifications.
+When nil, only notify on the day of the event.
+When 1, also notify the day before at `chime-day-wide-alert-times'.
+When 2, notify two days before, etc.
+
+Useful for events requiring preparation, such as birthdays (buying gifts)
+or multi-day conferences (packing, travel arrangements).
+
+Note: This only affects notifications, not tooltip/modeline display.
+
+Example: With value 1 and alert times \\='(\"08:00\"), you'll get:
+  - \"Blake's birthday is tomorrow\" at 08:00 the day before
+  - \"Blake's birthday is today\" at 08:00 on the day"
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(choice (const :tag "Same day only" nil)
+                 (integer :tag "Days in advance")))
+#+end_src
+
+*** 3. Add chime-tooltip-show-all-day-events
+:PROPERTIES:
+:CUSTOM_ID: add-chime-tooltip-show-all-day-events
+:END:
+*Location:* After chime-day-wide-advance-notice
+
+#+begin_src elisp
+(defcustom chime-tooltip-show-all-day-events t
+  "Whether to show all-day events in the tooltip.
+When nil, all-day events (birthdays, multi-day conferences, etc.) are
+hidden from the tooltip but can still trigger notifications.
+When t, all-day events appear in the tooltip for planning purposes.
+
+All-day events are never shown in the modeline (only in tooltip).
+
+This is useful for seeing upcoming birthdays, holidays, and multi-day
+events without cluttering the modeline with non-time-sensitive items."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'boolean)
+#+end_src
+
+*** 4. Add chime-modeline-tooltip-lookahead
+:PROPERTIES:
+:CUSTOM_ID: add-chime-modeline-tooltip-lookahead
+:END:
+*Location:* After chime-modeline-format (around line ~295)
+
+#+begin_src elisp
+(defcustom chime-modeline-tooltip-lookahead 525600
+  "Minutes ahead to look for events in tooltip (separate from modeline lookahead).
+Default is 525600 (1 year), effectively showing all future events.
+The actual number of events shown is limited by `chime-modeline-tooltip-max-events'.
+
+Set to a smaller value if you want to limit tooltip by time as well as count.
+Example: Set to 1440 (24 hours) to show only today's events in tooltip,
+or keep at default to show next N events regardless of how far in the future."
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type 'integer)
+#+end_src
+
+--------------
+
+** Edge Cases to Consider
+:PROPERTIES:
+:CUSTOM_ID: edge-cases-to-consider
+:END:
+*** 1. Empty days-until Result
+:PROPERTIES:
+:CUSTOM_ID: empty-days-until-result
+:END:
+If =--min= returns no valid values (all timestamps filtered out),
+=days-until= will be =nil=. - Solution: Add nil check before cond, or
+ensure fallback case handles it
+
+*** 2. Multiple All-Day Timestamps
+:PROPERTIES:
+:CUSTOM_ID: multiple-all-day-timestamps
+:END:
+An event might have multiple all-day timestamps (e.g., recurring). -
+=--min= will find the soonest one - Notification should show earliest
+date
+
+*** 3. Mixed Timed and All-Day Timestamps
+:PROPERTIES:
+:CUSTOM_ID: mixed-timed-and-all-day-timestamps
+:END:
+An event might have both =<2025-12-19 Fri>= and
+=<2025-12-19 Fri 10:00>=. - Should be treated as timed event (has
+specific time) - Current =chime-event-has-any-day-wide-timestamp= checks
+if ANY timestamp lacks time - This is correct behavior
+
+*** 4. Today at 23:59
+:PROPERTIES:
+:CUSTOM_ID: today-at-2359
+:END:
+If current time is late at night (23:59), advance notice for tomorrow
+might be only 1 minute away. - Time calculation still works correctly -
+Event will transition from "tomorrow" to "today" at midnight - Next
+notification cycle will pick up the change
+
+*** 5. Timezone Changes
+:PROPERTIES:
+:CUSTOM_ID: timezone-changes
+:END:
+If user crosses timezones, =(current-time)= reflects new timezone. -
+Event times are stored as absolute times - Calculations remain correct -
+Display might show different relative times
+
+--------------
+
+** Testing Strategy
+:PROPERTIES:
+:CUSTOM_ID: testing-strategy
+:END:
+*** Unit Tests (test-chime-all-day-events.el)
+:PROPERTIES:
+:CUSTOM_ID: unit-tests-test-chime-all-day-events.el
+:END:
+- ✅ Created with 18 tests
+- Covers all new functions in isolation
+- Uses mocked current-time for predictability
+
+*** Integration Tests (test-chime-gcal-real-data.el)
+:PROPERTIES:
+:CUSTOM_ID: integration-tests-test-chime-gcal-real-data.el
+:END:
+- ✅ Existing tests should continue passing
+- ✅ Regression test catches org-agenda span bug
+- ⚠️ May need new integration test for advance notice end-to-end flow
+
+*** Manual Testing Checklist
+:PROPERTIES:
+:CUSTOM_ID: manual-testing-checklist
+:END:
+1. Set =chime-day-wide-alert-times= to current time + 1 minute
+2. Create test org file with all-day event tomorrow
+3. Set =chime-day-wide-advance-notice= to 1
+4. Wait for notification
+5. Verify text shows "tomorrow"
+6. Change event to 2 days from now
+7. Set advance notice to 2
+8. Verify text shows "in 2 days"
+
+--------------
+
+** Questions to Resolve Before Implementing
+:PROPERTIES:
+:CUSTOM_ID: questions-to-resolve-before-implementing
+:END:
+*** 1. Should advance notice work with chime-show-any-overdue-with-day-wide-alerts?
+:PROPERTIES:
+:CUSTOM_ID: should-advance-notice-work-with-chime-show-any-overdue-with-day-wide-alerts
+:END:
+Currently, overdue logic only applies to today's events. Should advance
+notices also respect this setting?
+
+*Recommendation:* No, keep separate. Advance notices are for future
+events, overdue is for past events.
+
+*** 2. What if user has both timed and all-day events with same title?
+:PROPERTIES:
+:CUSTOM_ID: what-if-user-has-both-timed-and-all-day-events-with-same-title
+:END:
+Example: "Blake's Birthday" as =<2025-12-19 Fri>= AND "Birthday Party"
+as =<2025-12-19 Fri 18:00>=.
+
+*Current behavior:* Two separate events, both would appear.
+
+*Is this desired?* Probably yes - they represent different things
+(birthday vs party).
+
+*** 3. Should tooltip-lookahead override be a separate defcustom?
+:PROPERTIES:
+:CUSTOM_ID: should-tooltip-lookahead-override-be-a-separate-defcustom
+:END:
+Currently the patch includes =chime-modeline-tooltip-lookahead= as a new
+defcustom.
+
+*Status:* Yes, already included in step 4 of defcustoms section above.
+
+*** 4. Emacs version compatibility?
+:PROPERTIES:
+:CUSTOM_ID: emacs-version-compatibility
+:END:
+=decoded-time-year=, =decoded-time-month=, =decoded-time-day= require
+Emacs 27+.
+
+*Solution:* Already documented in section 2 - use =nth= accessors for
+older versions.
+
+*Recommendation:* Add version check or use =nth= consistently:
+
+#+begin_src elisp
+(let ((year (nth 5 parsed))
+      (month (nth 4 parsed))
+      (day (nth 3 parsed)))
+  ...)
+#+end_src
+
+This is more compatible but less readable.
+
+--------------
+
+** Summary
+:PROPERTIES:
+:CUSTOM_ID: summary
+:END:
+*Complexity Level:* Medium-High - Most changes are straightforward
+defcustom additions - Two complex functions with nested expressions
+require care - Parenthesis matching is the biggest risk - Time
+calculations are tricky but well-documented
+
+*Estimated Time:* 2-3 hours for careful implementation + testing
+
+*Risk Areas:* 1. 🔴 HIGH: Parenthesis matching in notification-text
+function 2. 🟡 MEDIUM: Logic correctness in advance notice window
+calculation 3. 🟡 MEDIUM: Modeline update function changes (two nested
+loops) 4. 🟢 LOW: Defcustom additions (straightforward)
+
+*Success Criteria:* - [ ] chime.el loads without errors - [ ] All 18 new
+tests pass - [ ] All existing tests still pass - [ ] Manual testing
+confirms notifications work - [ ] README documents new features
+
+*Next Steps:* 1. Create patch file with all changes 2. Review patch
+carefully for paren matching 3. Apply patch incrementally (test after
+each step) 4. Run full test suite 5. Update README with new features
