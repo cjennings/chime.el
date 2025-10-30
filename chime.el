@@ -64,6 +64,9 @@
 (require 'org-duration)
 (require 'cl-lib)
 
+;; Declare functions from chime-debug.el (loaded conditionally)
+(declare-function chime-debug-monitor-event-loading "chime-debug")
+
 (defgroup chime nil
   "Chime customization options."
   :group 'org)
@@ -332,13 +335,15 @@ This setting only takes effect when `chime-enable-modeline' is non-nil."
   :type 'string)
 
 (defcustom chime-tooltip-lookahead-hours 8760
-  "Hours ahead to look for events in tooltip (separate from modeline lookahead).
-Default is 8760 hours (1 year), effectively showing all future events.
-The actual number of events shown is limited by `chime-modeline-tooltip-max-events'.
+  "Hours ahead to look for events in tooltip.
+Separate from modeline lookahead window.
+Default is 8760 hours (1 year), showing all future events.
+The actual number of events shown is limited by
+`chime-modeline-tooltip-max-events'.
 
-Set to a smaller value if you want to limit tooltip by time as well as count.
-Example: Set to 24 to show only today's and tomorrow's events in tooltip,
-or keep at default to show next N events regardless of how far in the future."
+Set to a smaller value to limit tooltip by time as well as count.
+Example: Set to 24 to show only today's and tomorrow's events,
+or keep at default to show next N events regardless of distance."
   :package-version '(chime . "0.6.0")
   :group 'chime
   :type '(integer :tag "Hours"))
@@ -433,7 +438,7 @@ Emacs startup.
 
 Set to t to enable debug functions:
   (setq chime-debug t)
-  (require 'chime)"
+  (require \\='chime)"
   :package-version '(chime . "0.6.0")
   :group 'chime
   :type 'boolean)
@@ -771,7 +776,8 @@ Reconstructs marker from serialized file path and position."
       ;; Use org-fold-show-entry (Org 9.6+) if available, fallback to org-show-entry
       (if (fboundp 'org-fold-show-entry)
           (org-fold-show-entry)
-        (org-show-entry)))))
+        (with-no-warnings
+          (org-show-entry))))))
 
 (defun chime--format-event-for-tooltip (event-time-str minutes-until title)
   "Format a single event line for tooltip display.
@@ -855,9 +861,33 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
                   'mouse-face 'mode-line-highlight
                   'local-map map))))
 
+(defun chime--deduplicate-events-by-title (upcoming-events)
+  "Deduplicate UPCOMING-EVENTS by title, keeping soonest occurrence.
+
+UPCOMING-EVENTS should be a list where each element is
+\(EVENT TIME-INFO MINUTES).
+Returns a new list with only the soonest occurrence of each
+unique title.
+
+This prevents recurring events from appearing multiple times in
+the tooltip when `org-agenda-list' expands them into separate
+event objects."
+  (let ((title-hash (make-hash-table :test 'equal)))
+    (dolist (item upcoming-events)
+      (let* ((event (car item))
+             (title (cdr (assoc 'title event)))
+             (minutes (caddr item))
+             (existing (gethash title title-hash)))
+        ;; Only keep if this is the first occurrence or soonest so far
+        (when (or (not existing)
+                  (< minutes (caddr existing)))
+          (puthash title item title-hash))))
+    (hash-table-values title-hash)))
+
 (defun chime--update-modeline (events)
   "Update modeline with next upcoming event from EVENTS.
-Shows soonest event within `chime-modeline-lookahead-minutes' minutes in modeline.
+Shows soonest event within `chime-modeline-lookahead-minutes'
+minutes in modeline.
 Tooltip shows events within `chime-tooltip-lookahead-hours' hours
 \(or modeline lookahead if tooltip lookahead is nil)."
   (if (or (not chime-enable-modeline)
@@ -885,7 +915,6 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
                (times-for-tooltip (if chime-tooltip-show-all-day-events
                                       all-times
                                     (chime--filter-day-wide-events all-times)))
-               (soonest-time-for-event nil)
                (soonest-time-info nil)
                (soonest-minutes-for-event nil))
           ;; Find the soonest upcoming timestamp for THIS event (for tooltip)
@@ -930,6 +959,12 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
                       (chime--notification-text
                        `(,(car soonest-time-info) . ,soonest-timed-minutes) event)))))))
       ;; Sort upcoming events by time (soonest first)
+      (setq upcoming (sort upcoming
+                          (lambda (a b) (< (nth 2 a) (nth 2 b)))))
+      ;; Deduplicate by title - keep only the soonest occurrence of each unique title
+      ;; This prevents recurring events from appearing multiple times in the tooltip
+      (setq upcoming (chime--deduplicate-events-by-title upcoming))
+      ;; Re-sort after deduplication to maintain time ordering
       (setq upcoming (sort upcoming
                           (lambda (a b) (< (nth 2 a) (nth 2 b)))))
       (setq chime--upcoming-events upcoming)
@@ -1165,14 +1200,16 @@ Returns nil if parsing fails or timestamp is malformed."
   "Extract timestamps from MARKER using source-aware extraction.
 
 For org-gcal events (those with :entry-id: property):
-  - Extract ONLY from :org-gcal: drawer (ignores SCHEDULED/DEADLINE and body text)
+  - Extract ONLY from :org-gcal: drawer
+    (ignores SCHEDULED/DEADLINE and body text)
   - This prevents showing stale timestamps after rescheduling
 
 For regular org events:
   - Prefer SCHEDULED and DEADLINE from properties
   - Fall back to plain timestamps in entry body
 
-Timestamps are extracted as cons cells: (org-formatted-string . parsed-time)."
+Timestamps are extracted as cons cells:
+\(org-formatted-string . parsed-time)."
   (org-with-point-at marker
     (let ((is-gcal-event (org-entry-get marker "entry-id")))
       (if is-gcal-event
