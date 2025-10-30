@@ -727,6 +727,59 @@ M-x chime-check
 1. Ensure files are in =org-agenda-files=
 2. Verify timestamps have time components: =<2025-10-25 Sat 14:00>= not =<2025-10-25 Sat>=
 3. Check filtering settings (keyword/tag whitelist/blacklist)
+4. Timestamps support both 24-hour (=14:00=) and 12-hour (=2:00pm=, =2:00 PM=) formats
+
+*** org-contacts diary sexp errors
+
+If you see errors like "Bad sexp at line 2: (let ((entry) (date '(10 29 2025))) (org-contacts-anniversaries))" in your =*emacs:err*= buffer, this is because chime's async subprocess doesn't have org-contacts loaded.
+
+*Symptoms:*
+- No events appear in modeline despite having scheduled items
+- =*emacs:err*= buffer shows "Bad sexp" errors for org-contacts
+- Errors appear repeatedly (every minute during chime checks)
+
+*Solution 1: Load org-contacts in your config (Recommended)*
+
+Add this to your config BEFORE chime loads:
+
+#+BEGIN_SRC elisp
+(require 'org-contacts nil t)  ; Load if available, don't error if missing
+#+END_SRC
+
+Chime will automatically load org-contacts in its async subprocess if it's installed.
+
+*Solution 2: Comment out the sexp line*
+
+In your org file (usually =schedule.org=), comment out or remove:
+
+#+BEGIN_SRC org
+# %%(org-contacts-anniversaries)
+#+END_SRC
+
+*Solution 3: Convert to plain timestamps*
+
+Use the conversion script to generate plain org entries from your contacts:
+
+#+BEGIN_SRC elisp
+;; Load the conversion script
+(load-file "/path/to/convert-org-contacts-birthdays.el")
+
+;; Convert contacts to plain org entries
+M-x convert-contacts-to-file RET ~/birthdays.org RET
+#+END_SRC
+
+This creates entries like:
+
+#+BEGIN_SRC org
+** John Doe's Birthday
+<2026-03-15 Sun +1y>
+#+END_SRC
+
+Then add =birthdays.org= to =org-agenda-files= and remove the sexp line.
+
+*Why this happens:*
+
+Org-mode diary sexps like =%%(org-contacts-anniversaries)= are dynamic expressions evaluated during agenda building. Chime runs agenda building in an async subprocess for performance, but that subprocess needs the generating package (org-contacts) loaded. Chime includes org-contacts as a soft dependency, but it must be installed for the sexp to work.
 
 ** Requirements
 
