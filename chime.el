@@ -441,7 +441,7 @@ org-agenda-files is populated at startup)."
            (user-error "chime-startup-delay must be a non-negative integer, got: %s" value))
          (set-default symbol value)))
 
-(defcustom chime-debug t
+(defcustom chime-debug nil
   "Enable debug functions for troubleshooting chime behavior.
 When non-nil, loads chime-debug.el which provides:
 - `chime--debug-dump-events' - Show all stored upcoming events
