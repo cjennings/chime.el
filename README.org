@@ -999,3 +999,41 @@ If you're migrating from org-wild-notifier, you'll need to update your configura
 4. Update property names in your org files:
    - =:WILD_NOTIFIER_NOTIFY_BEFORE:= → =:CHIME_NOTIFY_BEFORE:=
 
+** Development
+
+*** Running Tests
+
+Chime uses ERT for testing with a Makefile for convenient test execution.
+
+**** Run all tests:
+#+BEGIN_SRC bash
+make test
+#+END_SRC
+
+**** Run unit tests only:
+#+BEGIN_SRC bash
+make test-unit
+#+END_SRC
+
+**** Run integration tests only:
+#+BEGIN_SRC bash
+make test-integration
+#+END_SRC
+
+**** Run a specific test file:
+#+BEGIN_SRC bash
+make test-file FILE=test-chime-notify.el
+#+END_SRC
+
+**** Run a specific test by name:
+#+BEGIN_SRC bash
+make test-name TEST=test-chime-check-early-return-on-validation-failure
+#+END_SRC
+
+**** Use a specific Emacs version:
+#+BEGIN_SRC bash
+make EMACS=emacs29 test
+#+END_SRC
+
+For more options, run =make help=.
+

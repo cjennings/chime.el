@@ -1537,7 +1537,7 @@ FORMAT-STRING and ARGS are passed to `format'."
       (unless (bolp) (insert "\n")))))
 
 ;;;###autoload
-(defun chime-check ()
+(cl-defun chime-check ()
   "Parse agenda view and notify about upcoming events.
 
 Do nothing if a check is already in progress in the background.

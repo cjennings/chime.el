@@ -222,6 +222,45 @@ This ensures the startup validation doesn't block legitimate configurations."
           (should (null issues))))
     (test-integration-startup-teardown)))
 
+;;; Error Cases - Configuration Failures
+
+(ert-deftest test-integration-startup-early-return-on-validation-failure ()
+  "Test that chime-check returns early when validation fails without throwing errors.
+
+This is a regression test for the bug where chime-check used cl-return-from
+without being defined as cl-defun, causing '(no-catch --cl-block-chime-check-- nil)' error.
+
+When validation fails on first check, chime-check should:
+- Log the validation failure
+- Return nil early (via cl-return-from)
+- NOT throw 'no-catch' error
+- NOT proceed to event gathering
+
+This validates the early-return mechanism works correctly."
+  (test-integration-startup-setup)
+  (unwind-protect
+      (progn
+        ;; Set up invalid configuration (empty org-agenda-files)
+        (setq org-agenda-files nil)
+
+        ;; Reset validation state so chime-check will validate on next call
+        (setq chime--validation-done nil)
+
+        ;; Call chime-check - should return early without error
+        ;; Before the fix, this would throw: (no-catch --cl-block-chime-check-- nil)
+        (let ((result (chime-check)))
+
+          ;; Should return nil (early return from validation failure)
+          (should (null result))
+
+          ;; Validation should now be marked done (even though it failed)
+          (should chime--validation-done)
+
+          ;; Should NOT have processed any events (early return worked)
+          (should (null chime--upcoming-events))
+          (should (null chime-modeline-string))))
+    (test-integration-startup-teardown)))
+
 ;;; Boundary Cases - Edge Conditions
 
 (ert-deftest test-integration-startup-single-event-found ()
