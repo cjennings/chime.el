@@ -356,6 +356,23 @@ Set to nil to show all events within tooltip lookahead window."
   :type '(choice (integer :tag "Maximum events")
                  (const :tag "Show all" nil)))
 
+(defcustom chime-modeline-no-events-text nil
+  "Text to display in modeline when no events are within lookahead window.
+When nil, nothing is shown in the modeline when no upcoming events.
+When a string, that text is displayed (e.g., \" 🔕\" for muted bell).
+
+This only applies when events exist beyond the lookahead window.
+If there are no events at all, the modeline is always empty.
+
+Examples:
+  nil              - Show nothing (clean modeline)
+  \" 🔕\"           - Show muted bell emoji
+  \" No events\"   - Show text message"
+  :package-version '(chime . "0.6.0")
+  :group 'chime
+  :type '(choice (const :tag "Show nothing" nil)
+                 (string :tag "Custom text")))
+
 (defcustom chime-notification-text-format "%t at %T (%u)"
   "Format string for notification text display.
 Available placeholders:
@@ -1001,8 +1018,8 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
                  soonest-event-obj)
               ;; Show indicator when no events within lookahead window
               ;; but events exist in tooltip window
-              (when upcoming
-                (propertize " ⏰ No events soon"
+              (when (and upcoming chime-modeline-no-events-text)
+                (propertize chime-modeline-no-events-text
                            'help-echo (chime--make-tooltip upcoming)
                            'mouse-face 'mode-line-highlight))))
       ;; Force update ALL windows/modelines, not just current buffer
