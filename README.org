@@ -573,7 +573,113 @@ You'll receive notifications on each day of the conference at your configured al
 
 **** Integration with org-contacts
 
-Note: If you use [[https://repo.or.cz/org-contacts.git][org-contacts]] for managing birthdays, be aware that org-contacts uses a special format (=BIRTHDAY= property) that is not directly supported by org-agenda timestamps. You'll need to manually add timestamp entries for birthdays you want notifications for, or use org-contacts' own reminder system.
+If you use [[https://repo.or.cz/org-contacts.git][org-contacts]] for managing contacts and birthdays, chime provides built-in integration to ensure birthdays appear in your agenda and trigger notifications.
+
+**The Problem:**
+
+Org-contacts stores birthdays as properties (=:BIRTHDAY: 1985-03-15=) and uses diary sexps (=%%(org-contacts-anniversaries)=) to display them in your agenda. However, chime's async subprocess doesn't have org-contacts loaded, causing "Bad sexp" errors and preventing birthdays from appearing.
+
+**The Solution:**
+
+Chime provides a two-part solution:
+
+1. **One-time conversion** for existing contacts
+2. **Automatic capture template** for new contacts
+
+Both approaches add plain org timestamps alongside the =:BIRTHDAY:= property, preserving vCard export compatibility while enabling chime notifications.
+
+**Step 1: Convert Existing Contacts**
+
+Use the included conversion script to add birthday timestamps to your existing contacts file:
+
+#+BEGIN_SRC elisp
+;; Load conversion script
+(require 'convert-org-contacts-birthdays
+         (expand-file-name "convert-org-contacts-birthdays.el"
+                          (file-name-directory (locate-library "chime"))))
+
+;; Convert your contacts file IN-PLACE (creates timestamped backup)
+M-x chime-convert-contacts-in-place RET ~/org/contacts.org RET
+#+END_SRC
+
+This modifies your contacts.org file, transforming:
+
+#+BEGIN_SRC org
+,* Alice Anderson
+:PROPERTIES:
+:EMAIL: alice@example.com
+:BIRTHDAY: 1985-03-15
+:END:
+#+END_SRC
+
+Into:
+
+#+BEGIN_SRC org
+,* Alice Anderson
+:PROPERTIES:
+:EMAIL: alice@example.com
+:BIRTHDAY: 1985-03-15
+:END:
+<1985-03-15 Sat +1y>
+#+END_SRC
+
+**Safety:** The script creates a timestamped backup (=contacts.org.backup-YYYY-MM-DD-HHMMSS=) before making any changes.
+
+After conversion, comment out the diary sexp in your schedule file:
+
+#+BEGIN_SRC org
+# %%(org-contacts-anniversaries)
+#+END_SRC
+
+**Step 2: Enable Capture Template for New Contacts**
+
+To automatically add birthday timestamps when capturing new contacts:
+
+#+BEGIN_SRC elisp
+;; Enable org-contacts integration
+(setq chime-org-contacts-file "~/org/contacts.org")
+
+;; Optional: customize capture key (default: "C")
+(setq chime-org-contacts-capture-key "C")
+
+;; Optional: customize heading (default: "Contacts")
+(setq chime-org-contacts-heading "Contacts")
+#+END_SRC
+
+This adds an org-capture template that:
+- Prompts for contact details (name, email, phone, birthday, etc.)
+- Automatically inserts a yearly repeating timestamp if birthday is provided
+- Preserves the =:BIRTHDAY:= property for vCard export
+
+**Using the Capture Template:**
+
+1. Press =C-c c= (or your org-capture binding)
+2. Press =C= (or your configured capture key)
+3. Fill in contact information
+4. Birthday timestamps are added automatically on save
+
+**Template Fields:**
+- Name, Email, Phone, Address
+- Birthday (YYYY-MM-DD or MM-DD format)
+- Nickname, Company, Title, Website
+- Note (instead of free-form text below properties)
+
+**Disabling the Integration:**
+
+Set =chime-org-contacts-file= to =nil= to disable the capture template:
+
+#+BEGIN_SRC elisp
+(setq chime-org-contacts-file nil)  ; Disabled by default
+#+END_SRC
+
+**Result:**
+
+After setup, birthdays will:
+- ✓ Appear in org-agenda
+- ✓ Trigger chime notifications at configured times
+- ✓ Work with chime's async subprocess (no "Bad sexp" errors)
+- ✓ Still export to vCard via org-contacts
+- ✓ Automatically include timestamps for new contacts
 
 ** Usage
 
@@ -758,24 +864,40 @@ In your org file (usually =schedule.org=), comment out or remove:
 
 *Solution 3: Convert to plain timestamps*
 
-Use the conversion script to generate plain org entries from your contacts:
+Use the conversion script to generate plain org entries from your contacts.
 
-#+BEGIN_SRC elisp
-;; Load the conversion script
-(load-file "/path/to/convert-org-contacts-birthdays.el")
+*Safety Note:* This script is READ-ONLY. It reads from your org-contacts database but never modifies it. The output is written to a new file.
 
-;; Convert contacts to plain org entries
-M-x convert-contacts-to-file RET ~/birthdays.org RET
-#+END_SRC
+*Step-by-step process:*
 
-This creates entries like:
+1. (Optional but recommended) Backup your org files
 
-#+BEGIN_SRC org
-** John Doe's Birthday
-<2026-03-15 Sun +1y>
-#+END_SRC
+2. Load and run the conversion script:
+   #+BEGIN_SRC elisp
+   ;; Load the conversion script (included in chime.el repo)
+   (require 'convert-org-contacts-birthdays
+            (expand-file-name "convert-org-contacts-birthdays.el"
+                             (file-name-directory (locate-library "chime"))))
 
-Then add =birthdays.org= to =org-agenda-files= and remove the sexp line.
+   ;; Convert contacts to plain org entries
+   M-x chime-convert-contacts-to-file RET ~/birthdays.org RET
+   #+END_SRC
+
+   This creates a NEW file (~/birthdays.org) with entries like:
+   #+BEGIN_SRC org
+   *** John Doe's Birthday
+   <2026-03-15 Sun +1y>
+   #+END_SRC
+
+3. When prompted, allow the script to add =birthdays.org= to =org-agenda-files=
+   (or add it manually later)
+
+4. Comment out or remove the sexp line from your schedule file:
+   #+BEGIN_SRC org
+   # %%(org-contacts-anniversaries)
+   #+END_SRC
+
+5. Restart chime or run =M-x chime-check= to verify birthdays appear without errors
 
 *Why this happens:*
 

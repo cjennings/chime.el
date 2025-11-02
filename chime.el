@@ -487,6 +487,17 @@ Set to t to enable debug functions:
                              (file-name-directory (or load-file-name buffer-file-name)))
            t))
 
+;; Load org-contacts integration if configured
+;; Note: The actual template setup happens in chime-org-contacts.el
+;; when org-capture is loaded, so users can defer org loading
+(with-eval-after-load 'org-capture
+  (when (and (boundp 'chime-org-contacts-file)
+             chime-org-contacts-file)
+    (require 'chime-org-contacts
+             (expand-file-name "chime-org-contacts.el"
+                               (file-name-directory (or load-file-name buffer-file-name)))
+             t)))
+
 (defvar chime--timer nil
   "Timer value.")
 
