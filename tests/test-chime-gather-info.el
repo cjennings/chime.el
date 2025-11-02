@@ -376,32 +376,6 @@ REFACTORED: Uses dynamic timestamps"
         (kill-buffer test-buffer))
     (test-chime-gather-info-teardown)))
 
-(ert-deftest test-chime-gather-info-with-custom-notify-property ()
-  "Test that gather-info includes custom notification intervals.
-
-REFACTORED: Uses dynamic timestamps"
-  (test-chime-gather-info-setup)
-  (unwind-protect
-      (let* ((time (test-time-tomorrow-at 14 0))
-             (timestamp (test-timestamp-string time))
-             (test-file (chime-create-temp-test-file-with-content
-                        (format "* TODO Meeting (Team\n:PROPERTIES:\n:CHIME_NOTIFY_BEFORE: 5 15\n:END:\nSCHEDULED: %s\n" timestamp)))
-             (test-buffer (find-file-noselect test-file)))
-        (with-current-buffer test-buffer
-          (org-mode)
-          (goto-char (point-min))
-          (let* ((marker (point-marker))
-                 (info (chime--gather-info marker))
-                 (intervals (cdr (assoc 'intervals info))))
-            ;; Should include default (10) plus custom (5, 15)
-            (should (member 10 intervals))
-            (should (member 5 intervals))
-            (should (member 15 intervals))
-            ;; Title should still be sanitized
-            (should (string-equal "Meeting (Team)" (cdr (assoc 'title info))))))
-        (kill-buffer test-buffer))
-    (test-chime-gather-info-teardown)))
-
 (ert-deftest test-chime-gather-info-serializable-without-marker-object ()
   "Test that gather-info returns serializable data without marker object.
 

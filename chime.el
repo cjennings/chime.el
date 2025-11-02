@@ -112,14 +112,6 @@ Note: Changes take effect after restarting chime-mode."
            (user-error "Check interval must be positive, got: %d" value))
          (set-default symbol value)))
 
-(defcustom chime-alert-times-property "CHIME_NOTIFY_BEFORE"
-  "Property name for per-event notification times.
-Use this property in your agenda files to add additional
-notifications to an event."
-  :package-version '(chime . "0.1.0")
-  :group 'chime
-  :type 'string)
-
 (defcustom chime-notification-title "Agenda"
   "Notifications title."
   :package-version '(chime . "0.1.0")
@@ -1387,16 +1379,6 @@ Title is sanitized to prevent Lisp read syntax errors."
             (org-heading-components)))
       (chime--sanitize-title title))))
 
-(defun chime--extract-notication-intervals (marker)
-  "Extract notification intervals from the event's properties.
-MARKER acts like the event's identifier.  Resulting list also contains
-standard notification interval (`chime-alert-time')."
-  `(,@(-flatten (list chime-alert-time))
-    ,@(-map 'string-to-number
-           (org-entry-get-multivalued-property
-            marker
-            chime-alert-times-property))))
-
 (defun chime--gather-info (marker)
   "Collect information about an event.
 MARKER acts like event's identifier.
@@ -1405,7 +1387,7 @@ async serialization (markers can't be serialized across processes,
 especially when buffer names contain angle brackets)."
   `((times . ,(chime--extract-time marker))
     (title . ,(chime--extract-title marker))
-    (intervals . ,(chime--extract-notication-intervals marker))
+    (intervals . ,(-flatten (list chime-alert-time)))
     (marker-file . ,(buffer-file-name (marker-buffer marker)))
     (marker-pos . ,(marker-position marker))))
 

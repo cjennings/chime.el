@@ -51,7 +51,6 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 - Multiple notification times per event (e.g., 5 minutes before and at event time)
 - Works with SCHEDULED and DEADLINE and just plain ol' regular timestamps
 - Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
-- Per-event notification customization via properties
 - Async background checking (runs every minute)
 - Configurable notification filtering by keywords and tags
 - [[https://github.com/cjennings/chime.el/tree/main/tests][Well-tested]], including with org-gcal
@@ -756,20 +755,6 @@ Supported repeaters:
 - =.+1d= - Repeat daily from completion
 - =++1w= - Repeat weekly from scheduled date
 
-*** Per-Event Notification Times
-
-Override global notification times for specific events:
-
-#+BEGIN_SRC org
-,* IMPORTANT Board Meeting
-SCHEDULED: <2025-10-25 Sat 14:00>
-:PROPERTIES:
-:CHIME_NOTIFY_BEFORE: 30 15 5 0
-:END:
-#+END_SRC
-
-This event will notify at: 30min, 15min, 5min before, and at event time.
-
 ** Known Limitations
 :PROPERTIES:
 :CUSTOM_ID: known-limitations
@@ -1010,8 +995,7 @@ If you're migrating from org-wild-notifier, you'll need to update your configura
    - =org-wild-notifier-mode= → =chime-mode=
    - =org-wild-notifier-check= → =chime-check=
 
-4. Update property names in your org files:
-   - =:WILD_NOTIFIER_NOTIFY_BEFORE:= → =:CHIME_NOTIFY_BEFORE:=
+4. Note: The =:WILD_NOTIFIER_NOTIFY_BEFORE:= / =:CHIME_NOTIFY_BEFORE:= property has been removed. Use the global =chime-alert-time= variable instead (e.g., =(setq chime-alert-time '(30 15 5 0))=).
 
 ** Development
 :PROPERTIES:
