@@ -17,6 +17,7 @@
 (require 'org-agenda)
 (load (expand-file-name "../chime.el") nil t)
 (require 'testutil-general (expand-file-name "testutil-general.el"))
+(require 'testutil-time (expand-file-name "testutil-time.el"))
 
 ;;; Setup and Teardown
 
@@ -84,13 +85,14 @@
 Issue: Tooltip showed '(in in 1h 4m)' instead of '(in 1h 4m)'."
   (test-tooltip-bugs-setup)
   (unwind-protect
-      (let* ((now (current-time))
+      (let* ((now (test-time-now))
              (event-time (time-add now (seconds-to-time (* 90 60)))) ; 90 min from now
              (time-str (format-time-string "<%Y-%m-%d %a %H:%M>" event-time))
              (content (test-tooltip-bugs--create-gcal-event "Test Event" time-str))
              (events (test-tooltip-bugs--gather-events content)))
 
-        (chime--update-modeline events)
+        (with-test-time now
+          (chime--update-modeline events))
         (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
           ;; Should NOT have "in in"
           (should-not (string-match-p "in in" tooltip))
@@ -107,7 +109,7 @@ Issue: Tooltip showed '(in in 1h 4m)' instead of '(in 1h 4m)'."
 Issue: Events appeared multiple times in tooltip."
   (test-tooltip-bugs-setup)
   (unwind-protect
-      (let* ((now (current-time))
+      (let* ((now (test-time-now))
              (event1-time (time-add now (seconds-to-time (* 60 60)))) ; 1 hour
              (event1-str (format-time-string "<%Y-%m-%d %a %H:%M>" event1-time))
              (event2-time (time-add now (seconds-to-time (* 120 60)))) ; 2 hours
@@ -117,7 +119,8 @@ Issue: Events appeared multiple times in tooltip."
                        (test-tooltip-bugs--create-gcal-event "Task 2" event2-str)))
              (events (test-tooltip-bugs--gather-events content)))
 
-        (chime--update-modeline events)
+        (with-test-time now
+          (chime--update-modeline events))
 
         ;; Should have exactly 2 events
         (should (= 2 (length chime--upcoming-events)))
@@ -137,7 +140,7 @@ Issue: Events later in file were being ignored.
 This tests that chime doesn't assume events are in chronological order in file."
   (test-tooltip-bugs-setup)
   (unwind-protect
-      (let* ((now (current-time))
+      (let* ((now (test-time-now))
              ;; Create events in NON-chronological order in file
              ;; Far event first, then near events
              (event-far-time (time-add now (seconds-to-time (* 48 3600)))) ; 2 days
@@ -154,7 +157,9 @@ This tests that chime doesn't assume events are in chronological order in file."
                        (test-tooltip-bugs--create-gcal-event "Task 2" event2-str)))
              (events (test-tooltip-bugs--gather-events content)))
 
-        (chime--update-modeline events)
+        ;; Mock time to prevent timing-related flakiness
+        (with-test-time now
+          (chime--update-modeline events))
 
         ;; Should have all 3 events
         (should (= 3 (length chime--upcoming-events)))
@@ -314,7 +319,7 @@ though there were many more future events in the file.
 This might be due to default max-events=5."
   (test-tooltip-bugs-setup)
   (unwind-protect
-      (let* ((now (current-time))
+      (let* ((now (test-time-now))
              (content "")
              (events nil))
 
@@ -331,7 +336,8 @@ This might be due to default max-events=5."
 
         ;; Set to default: max-events=5
         (let ((chime-modeline-tooltip-max-events 5))
-          (chime--update-modeline events)
+          (with-test-time now
+            (chime--update-modeline events))
 
           ;; All 10 events should be in upcoming-events
           (should (= 10 (length chime--upcoming-events)))

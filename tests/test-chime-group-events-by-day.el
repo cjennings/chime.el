@@ -173,17 +173,20 @@ REFACTORED: Uses dynamic timestamps"
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-just-under-1440 ()
-  "Test event at 1439 minutes (just under day boundary).
+  "Test event at 1439 minutes (23h 59m away).
 
-REFACTORED: Uses dynamic timestamps"
+If current time is 10:00 AM, an event 1439 minutes away is at 9:59 AM
+the next calendar day, so it should be grouped as 'Tomorrow', not 'Today'.
+
+REFACTORED: Uses dynamic timestamps and corrects expected behavior"
   (test-chime-group-events-by-day-setup)
   (unwind-protect
       (let* ((event (test-chime-make-event-item 1439 "Almost Tomorrow"))
              (upcoming (list event))
              (result (chime--group-events-by-day upcoming)))
-        ;; Should be grouped as "Today"
+        ;; Should be grouped as "Tomorrow" (next calendar day)
         (should (= 1 (length result)))
-        (should (string-match-p "Today" (car (car result)))))
+        (should (string-match-p "Tomorrow" (car (car result)))))
     (test-chime-group-events-by-day-teardown)))
 
 (ert-deftest test-chime-group-events-by-day-boundary-exactly-2880-minutes ()
@@ -212,6 +215,38 @@ REFACTORED: Uses dynamic timestamps"
         ;; Should be grouped as "Today"
         (should (= 1 (length result)))
         (should (string-match-p "Today" (car (car result)))))
+    (test-chime-group-events-by-day-teardown)))
+
+;;; Bug Reproduction Tests
+
+(ert-deftest test-chime-group-events-by-day-bug-tomorrow-morning-grouped-as-today ()
+  "Test that tomorrow morning event is NOT grouped as 'Today'.
+This reproduces the bug where an event at 10:00 AM tomorrow,
+when it's 11:23 AM today (22h 37m = 1357 minutes away),
+is incorrectly grouped as 'Today' instead of 'Tomorrow'.
+
+The bug: The function groups by 24-hour period (<1440 minutes)
+instead of by calendar day."
+  (test-chime-group-events-by-day-setup)
+  (unwind-protect
+      (with-test-time (encode-time 0 23 11 2 11 2025) ; Nov 02, 2025 11:23 AM
+        (let* ((now (current-time))
+               (tomorrow-morning (encode-time 0 0 10 3 11 2025)) ; Nov 03, 2025 10:00 AM
+               (minutes-until (/ (- (float-time tomorrow-morning) (float-time now)) 60))
+               ;; Create event manually since test-chime-make-event-item uses relative time
+               (event `((title . "Transit to Meeting")
+                       (times . ())))
+               (time-info (cons (test-timestamp-string tomorrow-morning) tomorrow-morning))
+               (event-item (list event time-info minutes-until))
+               (upcoming (list event-item))
+               (result (chime--group-events-by-day upcoming)))
+          ;; Verify it's less than 1440 minutes (this is why the bug happens)
+          (should (< minutes-until 1440))
+          ;; Should have 1 group
+          (should (= 1 (length result)))
+          ;; BUG: Currently groups as "Today" but should be "Tomorrow"
+          ;; because the event is on Nov 03, not Nov 02
+          (should (string-match-p "Tomorrow" (car (car result))))))
     (test-chime-group-events-by-day-teardown)))
 
 ;;; Error Cases

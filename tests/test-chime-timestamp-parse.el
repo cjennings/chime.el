@@ -286,6 +286,37 @@ REFACTORED: Uses dynamic timestamps (Oct 31)"
         (should result))
     (test-chime-timestamp-parse-teardown)))
 
+;;; Bug Reproduction Tests
+
+(ert-deftest test-chime-timestamp-parse-tomorrow-timestamp-returns-correct-date ()
+  "Test that a tomorrow timestamp is parsed as tomorrow, not today.
+This reproduces the bug where timestamps like <2025-11-03 Mon 10:00-10:30>
+on Nov 02 are incorrectly grouped as 'Today' instead of 'Tomorrow'."
+  (test-chime-timestamp-parse-setup)
+  (unwind-protect
+      (with-test-time (encode-time 0 23 11 2 11 2025) ; Nov 02, 2025 11:23:00 AM
+        (let* ((tomorrow-timestamp "<2025-11-03 Mon 10:00-10:30>")
+               (parsed (chime--timestamp-parse tomorrow-timestamp))
+               (now (current-time)))
+          ;; Should parse successfully
+          (should parsed)
+          ;; Convert parsed time (HIGH LOW) to full time by appending (0 0)
+          (let* ((parsed-time (append parsed '(0 0)))
+                 (parsed-decoded (decode-time parsed-time))
+                 (time-diff-seconds (- (time-to-seconds parsed-time)
+                                      (time-to-seconds now))))
+            ;; Verify the parsed date is Nov 03, 2025 (not Nov 02!)
+            (should (= 3 (decoded-time-day parsed-decoded)))
+            (should (= 11 (decoded-time-month parsed-decoded)))
+            (should (= 2025 (decoded-time-year parsed-decoded)))
+            ;; Verify the parsed time is 10:00
+            (should (= 10 (decoded-time-hour parsed-decoded)))
+            (should (= 0 (decoded-time-minute parsed-decoded)))
+            ;; Time difference should be ~22h 37m (81420 seconds)
+            (should (> time-diff-seconds 81360))  ; At least 22h 36m
+            (should (< time-diff-seconds 81480)))))  ; At most 22h 38m
+    (test-chime-timestamp-parse-teardown)))
+
 ;;; Error Cases
 
 (ert-deftest test-chime-timestamp-parse-empty-string-returns-nil ()

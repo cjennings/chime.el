@@ -847,18 +847,37 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
     (dolist (item upcoming-events)
       (let* ((event-time (cdr (nth 1 item)))
              (minutes-until (nth 2 item))
-             (date-string (cond
-                           ((< minutes-until 1440) ;; Today
-                            (format-time-string "Today, %b %d" now))
-                           ((< minutes-until 2880) ;; Tomorrow
-                            (format-time-string "Tomorrow, %b %d"
-                                               (time-add now (days-to-time 1))))
-                           (t ;; Future days
-                            (format-time-string "%A, %b %d" event-time)))))
-        (let ((day-group (assoc date-string grouped)))
-          (if day-group
-              (setcdr day-group (append (cdr day-group) (list item)))
-            (push (cons date-string (list item)) grouped)))))
+             ;; Get date components for calendar day comparison
+             (now-decoded (decode-time now))
+             (event-decoded (decode-time event-time)))
+        (when event-decoded
+          (let* ((now-day (decoded-time-day now-decoded))
+                 (now-month (decoded-time-month now-decoded))
+                 (now-year (decoded-time-year now-decoded))
+                 (event-day (decoded-time-day event-decoded))
+                 (event-month (decoded-time-month event-decoded))
+                 (event-year (decoded-time-year event-decoded))
+                 ;; Check if same calendar day (not just < 24 hours)
+                 (same-day-p (and (= now-day event-day)
+                                 (= now-month event-month)
+                                 (= now-year event-year)))
+                 ;; Check if tomorrow (next calendar day)
+                 (tomorrow-decoded (decode-time (time-add now (days-to-time 1))))
+                 (tomorrow-p (and (= event-day (decoded-time-day tomorrow-decoded))
+                                 (= event-month (decoded-time-month tomorrow-decoded))
+                                 (= event-year (decoded-time-year tomorrow-decoded))))
+                 (date-string (cond
+                               (same-day-p
+                                (format-time-string "Today, %b %d" now))
+                               (tomorrow-p
+                                (format-time-string "Tomorrow, %b %d"
+                                                   (time-add now (days-to-time 1))))
+                               (t ;; Future days
+                                (format-time-string "%A, %b %d" event-time)))))
+            (let ((day-group (assoc date-string grouped)))
+              (if day-group
+                  (setcdr day-group (append (cdr day-group) (list item)))
+                (push (cons date-string (list item)) grouped)))))))
     (nreverse grouped)))
 
 (defun chime--make-tooltip (upcoming-events)

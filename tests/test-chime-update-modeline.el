@@ -52,7 +52,10 @@
   (setq chime-modeline-string nil)
   (setq chime-enable-modeline t)
   (setq chime-modeline-lookahead-minutes 30)
-  (setq chime-modeline-format " ⏰ %s"))
+  (setq chime-modeline-format " ⏰ %s")
+  ;; Disable no-events indicator for tests that expect nil modeline
+  (setq chime-modeline-no-events-text nil)
+  (setq chime-tooltip-lookahead-hours nil)) ; Use modeline lookahead
 
 (defun test-chime-update-modeline-teardown ()
   "Teardown function run after each test."

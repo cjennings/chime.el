@@ -73,7 +73,7 @@
           ;; Set up chime--upcoming-events as if chime--update-modeline populated it
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Meeting")))
-                 (event-item (list event (list timestamp-str event-time) minutes)))
+                 (event-item (list event (cons timestamp-str event-time) minutes)))
             (setq chime--upcoming-events (list event-item))
             ;; Clear messages buffer to check output
             (with-current-buffer (get-buffer-create "*Messages*")
@@ -116,7 +116,7 @@
           ;; Set up chime--upcoming-events
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Meeting")))
-                 (event-item (list event (list timestamp-str event-time) minutes)))
+                 (event-item (list event (cons timestamp-str event-time) minutes)))
             (setq chime--upcoming-events (list event-item))
             ;; Clear messages buffer
             (with-current-buffer (get-buffer-create "*Messages*")
@@ -208,7 +208,7 @@
           ;; Set up events
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Integration Test Meeting")))
-                 (event-item (list event (list timestamp-str event-time) minutes)))
+                 (event-item (list event (cons timestamp-str event-time) minutes)))
             (setq chime--upcoming-events (list event-item))
             ;; Call all three debug functions - should not error
             (should-not (condition-case nil
