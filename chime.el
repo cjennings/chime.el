@@ -348,9 +348,9 @@ Set to nil to show all events within tooltip lookahead window."
   :type '(choice (integer :tag "Maximum events")
                  (const :tag "Show all" nil)))
 
-(defcustom chime-modeline-no-events-text " ⏰🚫"
+(defcustom chime-modeline-no-events-text " ⏰"
   "Text to display in modeline when no events are within lookahead window.
-Shows an alarm icon with prohibition symbol by default.
+Shows an alarm icon by default.
 When nil, nothing is shown in the modeline when no upcoming events.
 When a string, that text is displayed.
 
@@ -358,7 +358,7 @@ This only applies when events exist beyond the lookahead window.
 If there are no events at all, the modeline is always empty.
 
 Examples:
-  \" ⏰🚫\"         - Alarm with prohibition (default)
+  \" ⏰\"         - Alarm icon (default)
   \" 🔕\"           - Muted bell emoji
   nil              - Show nothing (clean modeline)
   \" No events\"   - Show text message"
