@@ -72,7 +72,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Team Meeting")))
                    (events (list event)))
@@ -98,7 +98,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time-2 (test-time-today-at 14 25))
              (timestamp-str-2 (test-timestamp-string event-time-2)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event1 `((times . ((,timestamp-str-1 . ,event-time-1)))
                              (title . "Standup")))
                    (event2 `((times . ((,timestamp-str-2 . ,event-time-2)))
@@ -122,7 +122,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 15 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Far Future Event")))
                    (events (list event)))
@@ -141,7 +141,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Team Meeting")))
                    (events (list event)))
@@ -161,7 +161,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Team Meeting")))
                    (events (list event)))
@@ -181,7 +181,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Team Meeting")))
                    (events (list event)))
@@ -202,7 +202,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
   (unwind-protect
       (let ((now (test-time-today-at 14 0)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let ((events '()))
               (chime--update-modeline events)
               (should-not chime-modeline-string)))))
@@ -218,7 +218,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 0 0))
              (timestamp-str (test-timestamp-string event-time t)))  ; Day-wide
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "All Day Event")))
                    (events (list event)))
@@ -237,7 +237,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 30))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Boundary Event")))
                    (events (list event)))
@@ -256,7 +256,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Team Meeting")))
                    (events (list event)))
@@ -280,7 +280,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 13 50))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Past Event")))
                    (events (list event)))
@@ -296,7 +296,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
   (unwind-protect
       (let ((now (test-time-today-at 14 0)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             ;; Should not error with nil events
             (should-not (condition-case nil
                             (progn (chime--update-modeline nil) nil)
@@ -313,7 +313,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
   (unwind-protect
       (let ((now (test-time-today-at 14 0)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* (;; Event missing required fields
                    (invalid-event '((invalid . "structure")))
                    (events (list invalid-event)))
@@ -331,7 +331,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
   (unwind-protect
       (let ((now (test-time-today-at 14 0)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event '((times . nil)
                             (title . "Event with nil times")))
                    (events (list event)))
@@ -360,7 +360,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event3-time (test-time-today-at 14 25))
              (timestamp-str-3 (test-timestamp-string event3-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event1 `((times . ((,timestamp-str-1 . ,event1-time)))
                              (title . "Event 1")
                              (marker . nil)))
@@ -393,7 +393,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event3-time (test-time-today-at 14 5))
              (timestamp-str-3 (test-timestamp-string event3-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event1 `((times . ((,timestamp-str-1 . ,event1-time)))
                              (title . "Latest Event")
                              (marker . nil)))
@@ -422,7 +422,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Test Event")
                             (marker . nil)))
@@ -452,7 +452,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event2-time (test-time-today-at 15 0))
              (timestamp-str-2 (test-timestamp-string event2-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event1 `((times . ((,timestamp-str-1 . ,event1-time)))
                              (title . "Within Window")
                              (marker . nil)))

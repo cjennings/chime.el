@@ -70,7 +70,7 @@
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Meeting")))
                    (events (list event)))
@@ -97,7 +97,7 @@
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Important Meeting")))
                    (events (list event)))
@@ -129,7 +129,7 @@
              (event-time (test-time-today-at 14 10))
              (timestamp-str (test-timestamp-string event-time)))
         (with-test-time now
-          (cl-letf (((symbol-function 'force-mode-line-update) (lambda ())))
+          (cl-letf (((symbol-function 'force-mode-line-update) (lambda (&optional _))))
             (let* ((event `((times . ((,timestamp-str . ,event-time)))
                             (title . "Review PR")))
                    (events (list event)))
