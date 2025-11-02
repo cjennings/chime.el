@@ -3,7 +3,29 @@
 
 Customizable org notifications for Emacs with visual alerts, audible chimes, and modeline display.
 
+** Table of Contents
+
+- [[#about][About]]
+- [[#features][Features]]
+- [[#installation][Installation]]
+- [[#quick-start][Quick Start]]
+- [[#configuration][Configuration]]
+- [[#usage][Usage]]
+- [[#known-limitations][Known Limitations]]
+- [[#full-example-configuration][Full Example Configuration]]
+- [[#manual-check][Manual Check]]
+- [[#troubleshooting][Troubleshooting]]
+- [[#requirements][Requirements]]
+- [[#testing][Testing]]
+- [[#license][License]]
+- [[#credits][Credits]]
+- [[#migration-from-org-wild-notifier][Migration from org-wild-notifier]]
+- [[#development][Development]]
+
 ** About
+:PROPERTIES:
+:CUSTOM_ID: about
+:END:
 
 CHIME (backronym: *CHIME Heralds Imminent Events*) provides notification support for your org-agenda events. Get visual notifications, a pleasant chime sound, and see your next upcoming event in your modeline.
 
@@ -12,6 +34,9 @@ This is an updated and maintained fork of the abandoned [[https://github.com/akh
 Note: while I've found this package to be quite reliable, it's still undergoing feature development and will be changing frequently. 
 
 ** Features
+:PROPERTIES:
+:CUSTOM_ID: features
+:END:
 
 - *Visual notifications* with customizable alert times
 - *Audible chime sound* when notifications are displayed
@@ -32,6 +57,9 @@ Note: while I've found this package to be quite reliable, it's still undergoing 
 - [[https://github.com/cjennings/chime.el/tree/main/tests][Well-tested]], including with org-gcal
 
 ** Installation
+:PROPERTIES:
+:CUSTOM_ID: installation
+:END:
 
 This package is NOT YET available on MELPA.
 
@@ -89,6 +117,9 @@ This package is NOT YET available on MELPA.
 #+END_SRC
 
 ** Quick Start
+:PROPERTIES:
+:CUSTOM_ID: quick-start
+:END:
 
 Minimal configuration:
 
@@ -106,6 +137,9 @@ clone the package somewhere, then add
 #+END_SRC
 
 ** Configuration
+:PROPERTIES:
+:CUSTOM_ID: configuration
+:END:
 
 *** Polling Interval
 
@@ -682,6 +716,9 @@ After setup, birthdays will:
 - ✓ Automatically include timestamps for new contacts
 
 ** Usage
+:PROPERTIES:
+:CUSTOM_ID: usage
+:END:
 
 *** Basic Event with Timestamp
 
@@ -734,6 +771,9 @@ SCHEDULED: <2025-10-25 Sat 14:00>
 This event will notify at: 30min, 15min, 5min before, and at event time.
 
 ** Known Limitations
+:PROPERTIES:
+:CUSTOM_ID: known-limitations
+:END:
 
 *** S-expression Diary Entries Are Not Supported
 
@@ -758,6 +798,9 @@ For Monday-Friday events, you can either:
 2. Create 5 separate entries, one for each weekday with =+1w= repeater
 
 ** Full Example Configuration
+:PROPERTIES:
+:CUSTOM_ID: full-example-configuration
+:END:
 
 #+BEGIN_SRC elisp
   (use-package chime
@@ -802,6 +845,9 @@ For Monday-Friday events, you can either:
 #+END_SRC
 
 ** Manual Check
+:PROPERTIES:
+:CUSTOM_ID: manual-check
+:END:
 
 You can manually trigger a notification check:
 
@@ -810,6 +856,9 @@ M-x chime-check
 #+END_SRC
 
 ** Troubleshooting
+:PROPERTIES:
+:CUSTOM_ID: troubleshooting
+:END:
 
 *** No notifications appearing
 
@@ -904,6 +953,9 @@ Use the conversion script to generate plain org entries from your contacts.
 Org-mode diary sexps like =%%(org-contacts-anniversaries)= are dynamic expressions evaluated during agenda building. Chime runs agenda building in an async subprocess for performance, but that subprocess needs the generating package (org-contacts) loaded. Chime includes org-contacts as a soft dependency, but it must be installed for the sexp to work.
 
 ** Requirements
+:PROPERTIES:
+:CUSTOM_ID: requirements
+:END:
 
 - Emacs 26.1+
 - Org-mode 9.0+
@@ -911,200 +963,40 @@ Org-mode diary sexps like =%%(org-contacts-anniversaries)= are dynamic expressio
 - =dash= package
 - =async= package
 
-** Test Suite
+** Testing
+:PROPERTIES:
+:CUSTOM_ID: testing
+:END:
 
-CHIME includes a comprehensive, future-proof test suite to ensure reliability and prevent regressions:
+Chime includes a comprehensive test suite with 339 tests covering all functionality. For detailed information about running tests, test architecture, and development workflows, see [[file:TESTING.org][TESTING.org]].
 
-- *339 total tests* across 23 test files
-  - Fast, isolated unit tests of individual functions
-  - Comprehensive integration scenarios using real org-gcal patterns
-  - *Dynamic timestamp generation* - tests work regardless of current date
-  - No hardcoded dates that expire or cause failures over time
-
-The test suite covers:
-- Timestamp parsing and time calculations
-- All-day event detection and notifications
-- Event filtering (keywords, tags, predicates)
-- Tooltip and modeline formatting
-- Notification text generation
-- Title sanitization and edge cases
-- Real-world org-gcal integration scenarios
-- Overdue TODO handling and day-wide alerts
-- Whitelist/blacklist conflict resolution
-
-*** Running Tests with the Makefile
-
-The =tests/= directory includes a comprehensive Makefile for easy test execution and validation:
-
-**** Run All Tests
-
+Quick start:
 #+BEGIN_SRC bash
 cd tests
-make test
+make test       # Run all tests
+make test-file FILE=modeline  # Run specific test file
 #+END_SRC
-
-This runs all 339 tests across 23 test files. Expected output:
-
-#+BEGIN_EXAMPLE
-✓ All dependencies found
-Running 339 tests...
-Ran 339 tests, 339 results as expected, 0 unexpected
-✓ All 339 tests passed!
-#+END_EXAMPLE
-
-**** Run Tests for a Specific File
-
-Use fuzzy matching to run tests from a single file:
-
-#+BEGIN_SRC bash
-cd tests
-make test-file FILE=modeline
-#+END_SRC
-
-The =FILE= parameter supports partial matching, so these all work:
-- =make test-file FILE=modeline= → runs =test-chime-modeline.el=
-- =make test-file FILE=overdue= → runs =test-chime-overdue-todos.el=
-- =make test-file FILE=notification-text= → runs =test-chime-notification-text.el=
-
-**** Run a Single Test
-
-Run one specific test by name (uses fuzzy matching):
-
-#+BEGIN_SRC bash
-cd tests
-make test-one TEST=all-day
-#+END_SRC
-
-Examples:
-- =make test-one TEST=all-day= → runs first test matching "all-day"
-- =make test-one TEST=overdue-disabled= → runs test for overdue disabled behavior
-- =make test-one TEST=sanitize-opening-paren= → runs specific sanitization test
-
-**** Syntax Validation
-
-Validate all Emacs Lisp syntax (checks parentheses balance):
-
-#+BEGIN_SRC bash
-cd tests
-make validate
-#+END_SRC
-
-This runs =check-parens= on all 26 =.el= files (23 test files + chime.el + 2 testutil files).
-
-**** Check Test Inventory
-
-See a breakdown of tests by file:
-
-#+BEGIN_SRC bash
-cd tests
-make count
-#+END_SRC
-
-Example output:
-
-#+BEGIN_EXAMPLE
-Test Count by File:
-──────────────────────────────────────────────
-30 tests - test-chime-notification-text.el
-30 tests - test-chime-sanitize-title.el
-25 tests - test-chime-timestamp-parse.el
-...
-──────────────────────────────────────────────
-Total: 339 tests across 23 files
-#+END_EXAMPLE
-
-**** Other Makefile Targets
-
-#+BEGIN_SRC bash
-make help           # Show all available targets with descriptions
-make check-deps     # Verify required ELPA dependencies are installed
-make lint           # Run byte-compilation warnings (optional - requires setup)
-#+END_SRC
-
-*** Test Architecture
-
-**** Dynamic Timestamp Generation
-
-Tests use a dynamic timestamp generation system (=testutil-time.el=) that creates timestamps relative to a stable base time:
-
-#+BEGIN_SRC elisp
-;; Instead of hardcoded dates:
-(encode-time 0 0 14 24 10 2025)  ; Fails after Oct 2025
-
-;; Tests use dynamic generation:
-(test-time-today-at 14 0)        ; Always works
-(test-time-tomorrow-at 9 0)      ; Relative to stable base
-(test-time-days-from-now 7)      ; 7 days from base time
-#+END_SRC
-
-This ensures:
-- Tests never expire or fail due to date changes
-- Time relationships remain consistent
-- Tests can run in any year without modification
-- Easier to understand test intent ("tomorrow at 9am" vs "2025-10-25 09:00")
-
-**** Time Mocking
-
-Tests use =with-test-time= macro to mock =current-time= for deterministic testing:
-
-#+BEGIN_SRC elisp
-(let ((now (test-time-today-at 14 0))
-      (event-time (test-time-today-at 14 30)))
-  (with-test-time now
-    ;; Inside this block, current-time returns our mocked "now"
-    ;; Event is 30 minutes in the future
-    (should (chime--should-notify-p event-time 30))))
-#+END_SRC
-
-**** Validation Infrastructure
-
-The test suite includes validation to prevent syntax errors:
-
-**Git Pre-commit Hook:**
-Automatically validates syntax before each commit:
-- Runs =check-parens= on all staged =.el= files
-- Blocks commits with syntax errors
-- Can be bypassed with =--no-verify= if needed
-
-**Makefile Integration:**
-- =make validate= - Quick syntax check (no external dependencies)
-- =make lint= - Comprehensive linting (requires =elisp-lint= setup)
-
-*** Running Tests Manually
-
-If you prefer not to use the Makefile:
-
-#+BEGIN_SRC bash
-cd tests
-
-# Run all tests
-emacs --batch -Q \
-  -L . \
-  -L ~/.emacs.d/elpa/dash-2.20.0 \
-  -L ~/.emacs.d/elpa/alert-20240105.2046 \
-  -L ~/.emacs.d/elpa/async-20250107.2200 \
-  --eval '(dolist (f (directory-files "." t "^test-.*\\.el$")) (load f))' \
-  --eval '(ert-run-tests-batch-and-exit)'
-
-# Run one test file
-emacs --batch -Q -L . -L /path/to/deps \
-  -l test-chime-modeline.el \
-  -f ert-run-tests-batch-and-exit
-#+END_SRC
-
-**Note:** The Makefile is recommended as it automatically finds your ELPA dependencies and provides better output formatting.
 
 ** License
+:PROPERTIES:
+:CUSTOM_ID: license
+:END:
 
 GPL-3.0
 
 ** Credits
+:PROPERTIES:
+:CUSTOM_ID: credits
+:END:
 
 All credit and thanks should go to Artem Khramov for his work on [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]], which served me well for some time. Sadly, the author deprecated org-wild-notifier on Aug 2, 2025 in favor of [[https://github.com/spegoraro/org-alert][org-alert]]. I begain fixing bugs and enhancing the feature set into what is now CHIME. 
 
 I plan to maintain this in appreciation and gratitude of Artem's work, and for the larger Emacs community. 
 
 ** Migration from org-wild-notifier
+:PROPERTIES:
+:CUSTOM_ID: migration-from-org-wild-notifier
+:END:
 
 If you're migrating from org-wild-notifier, you'll need to update your configuration:
 
@@ -1122,40 +1014,9 @@ If you're migrating from org-wild-notifier, you'll need to update your configura
    - =:WILD_NOTIFIER_NOTIFY_BEFORE:= → =:CHIME_NOTIFY_BEFORE:=
 
 ** Development
+:PROPERTIES:
+:CUSTOM_ID: development
+:END:
 
-*** Running Tests
-
-Chime uses ERT for testing with a Makefile for convenient test execution.
-
-**** Run all tests:
-#+BEGIN_SRC bash
-make test
-#+END_SRC
-
-**** Run unit tests only:
-#+BEGIN_SRC bash
-make test-unit
-#+END_SRC
-
-**** Run integration tests only:
-#+BEGIN_SRC bash
-make test-integration
-#+END_SRC
-
-**** Run a specific test file:
-#+BEGIN_SRC bash
-make test-file FILE=test-chime-notify.el
-#+END_SRC
-
-**** Run a specific test by name:
-#+BEGIN_SRC bash
-make test-name TEST=test-chime-check-early-return-on-validation-failure
-#+END_SRC
-
-**** Use a specific Emacs version:
-#+BEGIN_SRC bash
-make EMACS=emacs29 test
-#+END_SRC
-
-For more options, run =make help=.
+For information about running tests, test architecture, and development workflows, see [[file:TESTING.org][TESTING.org]].
 
