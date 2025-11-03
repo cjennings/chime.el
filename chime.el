@@ -42,13 +42,13 @@
 ;;
 ;; Quick Start:
 ;; (require 'chime)
-;; (setq chime-alert-time '(5 0))  ; 5 min before and at event time
+;; (setq chime-alert-intervals '((5 . medium) (0 . high)))  ; 5 min before and at event time
 ;; (chime-mode 1)
 ;;
 ;; Manual check: M-x chime-check
 ;;
-;; Notification times can be customized globally via `chime-alert-time'
-;; or per-event using the `CHIME_NOTIFY_BEFORE` property.
+;; Notification intervals and severity can be customized globally via
+;; `chime-alert-intervals'.
 ;;
 ;; Filter notifications using `chime-keyword-whitelist' and
 ;; `chime-keyword-blacklist' variables.
@@ -71,23 +71,46 @@
   "Chime customization options."
   :group 'org)
 
-(defcustom chime-alert-time '(10)
-  "Time in minutes to get a notification about upcoming event.
-Can be a single integer or a list of integers. Each value represents
-minutes before the event. Use 0 to notify at event time. Cannot be
-negative."
-  :package-version '(chime . "0.1.0")
+(defcustom chime-alert-intervals '((10 . medium))
+  "Alert intervals with severity levels for upcoming events.
+Each element is a cons cell (MINUTES . SEVERITY) where:
+- MINUTES: Number of minutes before event to notify (0 = at event time)
+- SEVERITY: Alert urgency level (high, medium, or low)
+
+Example configurations:
+  ;; Single notification at event time with high urgency
+  \\='((0 . high))
+
+  ;; Multiple notifications with escalating urgency
+  \\='((60 . low)      ;; 1 hour before: low urgency
+    (30 . low)      ;; 30 min before: low urgency
+    (10 . medium)   ;; 10 min before: medium urgency
+    (0  . high))    ;; At event: high urgency
+
+  ;; Same severity for all notifications
+  \\='((15 . medium) (5 . medium) (0 . medium))
+
+Each interval's severity affects how the notification is displayed
+by your system's notification daemon."
+  :package-version '(chime . "0.7.0")
   :group 'chime
-  :type '(choice (integer :tag "Notify once")
-                 (repeat integer))
+  :type '(repeat (cons (integer :tag "Minutes before event")
+                       (symbol :tag "Severity")))
   :set (lambda (symbol value)
-         (let ((values (if (listp value) value (list value))))
-           (dolist (v values)
-             (unless (integerp v)
-               (user-error "Alert time must be an integer, got: %S" v))
-             (when (< v 0)
-               (user-error "Alert time cannot be negative, got: %d" v)))
-           (set-default symbol value))))
+         (unless (listp value)
+           (user-error "chime-alert-intervals must be a list of cons cells, got: %S" value))
+         (dolist (interval value)
+           (unless (consp interval)
+             (user-error "Each interval must be a cons cell (MINUTES . SEVERITY), got: %S" interval))
+           (let ((minutes (car interval))
+                 (severity (cdr interval)))
+             (unless (integerp minutes)
+               (user-error "Alert time must be an integer, got: %S" minutes))
+             (when (< minutes 0)
+               (user-error "Alert time cannot be negative, got: %d" minutes))
+             (unless (memq severity '(high medium low))
+               (user-error "Severity must be high, medium, or low, got: %S" severity))))
+         (set-default symbol value)))
 
 (defcustom chime-check-interval 60
   "How often to check for upcoming events, in seconds.
@@ -238,14 +261,6 @@ not trigger a notification."
   :package-version '(chime . "0.5.0")
   :group 'chime
   :type '(function))
-
-(defcustom chime-alert-severity 'medium
-  "Severity of the alert.
-Options: \\='high \\='medium \\='low"
-  :package-version '(chime . "0.3.1")
-  :group 'chime
-  :type 'symbol
-  :options '(high medium low))
 
 (defcustom chime-extra-alert-plist nil
   "Additional arguments that should be passed to invocations of `alert'."
@@ -552,7 +567,8 @@ Returns nil if TIMESTAMP or INTERVAL is invalid."
 
 (defun chime--notifications (event)
   "Get notifications for given EVENT.
-Returns a list of time information interval pairs."
+Returns a list of time information interval pairs.
+Each pair is ((TIMESTAMP . TIME-VALUE) (MINUTES . SEVERITY))."
   (->> (list
         (chime--filter-day-wide-events (cdr (assoc 'times event)))
         (cdr (assoc 'intervals event)))
@@ -560,7 +576,8 @@ Returns a list of time information interval pairs."
          ;; When no values are provided for table flat, we get the second values
          ;; paired with nil.
          (--filter (not (null (car it))))
-         (--filter (chime--timestamp-within-interval-p (cdar it) (cadr it)))))
+         ;; Extract minutes from (minutes . severity) cons for time matching
+         (--filter (chime--timestamp-within-interval-p (cdar it) (car (cadr it))))))
 
 (defun chime--has-timestamp (s)
   "Check if S contain a timestamp with a time component.
@@ -607,13 +624,15 @@ Returns empty string if TITLE is nil."
 
 (defun chime--notification-text (str-interval event)
   "For given STR-INTERVAL list and EVENT get notification wording.
+STR-INTERVAL is (TIMESTAMP-STRING . (MINUTES . SEVERITY)).
 Format is controlled by `chime-notification-text-format'.
 Title is truncated per `chime-max-title-length' if set."
-  (let ((title (cdr (assoc 'title event))))
+  (let* ((title (cdr (assoc 'title event)))
+         (minutes (car (cdr str-interval))))
     (format-spec chime-notification-text-format
                  `((?t . ,(chime--truncate-title title))
                    (?T . ,(chime--get-hh-mm-from-org-time-string (car str-interval)))
-                   (?u . ,(chime--time-left (* 60 (cdr str-interval))))))))
+                   (?u . ,(chime--time-left (* 60 minutes)))))))
 
 (defun chime-get-minutes-into-day (time)
   "Get minutes elapsed since midnight for TIME string."
@@ -646,11 +665,14 @@ Returns a list of (HOURS MINUTES)."
          chime-day-wide-alert-times))
 
 (defun chime-day-wide-notifications (events)
-  "Generate notification texts for day-wide EVENTS."
+  "Generate notification texts for day-wide EVENTS.
+Returns a list of (MESSAGE . SEVERITY) cons cells with 'medium' severity."
   (->> events
        (-filter 'chime-display-as-day-wide-event)
        (-map 'chime--day-wide-notification-text)
-       (-uniq)))
+       (-uniq)
+       ;; Wrap messages in cons cells with default 'medium' severity
+       (--map (cons it 'medium))))
 
 (defun chime-display-as-day-wide-event (event)
   "Check if EVENT should be displayed as a day-wide event.
@@ -807,9 +829,16 @@ Handles both same-day events and advance notices."
 
 (defun chime--check-event (event)
   "Get notifications for given EVENT.
-Returns a list of notification messages"
+Returns a list of (MESSAGE . SEVERITY) cons cells."
   (->> (chime--notifications event)
-       (--map (chime--notification-text `(,(caar it) . ,(cadr it)) event))))
+       (--map (let* ((notif it)
+                     (timestamp-str (caar notif))
+                     (interval-cons (cadr notif))  ; (minutes . severity)
+                     (severity (cdr interval-cons))
+                     (message (chime--notification-text
+                              `(,timestamp-str . ,interval-cons)
+                              event)))
+                (cons message severity)))))
 
 (defun chime--jump-to-event (event)
   "Jump to EVENT's org entry in its file.
@@ -1023,7 +1052,7 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
                 (setq soonest-event-obj event)
                 (setq soonest-event-text
                       (chime--notification-text
-                       `(,(car soonest-time-info) . ,soonest-timed-minutes) event)))))))
+                       `(,(car soonest-time-info) . (,soonest-timed-minutes . medium)) event)))))))
       ;; Sort upcoming events by time (soonest first)
       (setq upcoming (sort upcoming
                           (lambda (a b) (< (nth 2 a) (nth 2 b)))))
@@ -1122,7 +1151,7 @@ Combines keyword, tag, and custom predicate blacklists."
                  "org-agenda-files"
                  "load-path"
                  "org-todo-keywords"
-                 "chime-alert-time"
+                 "chime-alert-intervals"
                  "chime-keyword-whitelist"
                  "chime-keyword-blacklist"
                  "chime-tags-whitelist"
@@ -1179,28 +1208,31 @@ Combines keyword, tag, and custom predicate blacklists."
          (chime--apply-blacklist)
          (-map 'chime--gather-info))))
 
-(defun chime--notify (event-msg)
+(defun chime--notify (msg-severity)
   "Notify about an event using `alert' library.
-EVENT-MSG is a string representation of the event."
-  ;; Play sound if enabled
-  (when chime-play-sound
-    (condition-case err
-        (if chime-sound-file
-            (when (file-exists-p chime-sound-file)
-              (play-sound-file chime-sound-file))
-          ;; Use default Emacs bell/beep if no file specified
-          (beep))
-      (error
-       (message "chime: Failed to play sound: %s"
-                (error-message-string err)))))
-  ;; Show visual notification
-  (apply
-   'alert event-msg
-   :icon chime-notification-icon
-   :title chime-notification-title
-   :severity chime-alert-severity
-   :category 'chime
-   chime-extra-alert-plist))
+MSG-SEVERITY is a cons cell (MESSAGE . SEVERITY) where MESSAGE is the
+notification text and SEVERITY is one of high, medium, or low."
+  (let* ((event-msg (if (consp msg-severity) (car msg-severity) msg-severity))
+         (severity (if (consp msg-severity) (cdr msg-severity) 'medium)))
+    ;; Play sound if enabled
+    (when chime-play-sound
+      (condition-case err
+          (if chime-sound-file
+              (when (file-exists-p chime-sound-file)
+                (play-sound-file chime-sound-file))
+            ;; Use default Emacs bell/beep if no file specified
+            (beep))
+        (error
+         (message "chime: Failed to play sound: %s"
+                  (error-message-string err)))))
+    ;; Show visual notification
+    (apply
+     'alert event-msg
+     :icon chime-notification-icon
+     :title chime-notification-title
+     :severity severity
+     :category 'chime
+     chime-extra-alert-plist)))
 
 (defun chime--convert-12hour-to-24hour (timestamp hour)
   "Convert HOUR from 12-hour to 24-hour format based on TIMESTAMP's am/pm suffix.
@@ -1408,7 +1440,7 @@ async serialization (markers can't be serialized across processes,
 especially when buffer names contain angle brackets)."
   `((times . ,(chime--extract-time marker))
     (title . ,(chime--extract-title marker))
-    (intervals . ,(-flatten (list chime-alert-time)))
+    (intervals . ,chime-alert-intervals)
     (marker-file . ,(buffer-file-name (marker-buffer marker)))
     (marker-pos . ,(marker-position marker))))
 

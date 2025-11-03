@@ -67,17 +67,19 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (timestamp-str (test-timestamp-string event-time))
              (event `((times . ((,timestamp-str . ,event-time)))
                       (title . "Team Meeting")
-                      (intervals . (10)))))
+                      (intervals . ((10 . medium))))))
         (with-test-time now
           (let ((result (chime--check-event event)))
             ;; Should return list with one formatted message
             (should (listp result))
             (should (= 1 (length result)))
-            (should (stringp (car result)))
+            (should (consp (car result)))
+            (should (stringp (caar result)))  ; Message part
+            (should (symbolp (cdar result)))  ; Severity part
             ;; Message should contain title and time information
-            (should (string-match-p "Team Meeting" (car result)))
-            (should (string-match-p "02:10 PM" (car result)))
-            (should (string-match-p "in 10 minutes" (car result))))))
+            (should (string-match-p "Team Meeting" (caar result)))
+            (should (string-match-p "02:10 PM" (caar result)))
+            (should (string-match-p "in 10 minutes" (caar result))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-multiple-notifications-returns-multiple-messages ()
@@ -95,16 +97,16 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (event `((times . ((,timestamp-str-1 . ,event-time-1)
                                 (,timestamp-str-2 . ,event-time-2)))
                       (title . "Important Call")
-                      (intervals . (10 5)))))  ; Both match
+                      (intervals . ((10 . medium) (5 . medium))))))  ; Both match
         (with-test-time now
           (let ((result (chime--check-event event)))
             ;; Should return two formatted messages
             (should (listp result))
             (should (= 2 (length result)))
-            (should (cl-every #'stringp result))
+            (should (cl-every #'consp result))  ; All items are cons cells
             ;; Both should mention the title
-            (should (string-match-p "Important Call" (car result)))
-            (should (string-match-p "Important Call" (cadr result))))))
+            (should (string-match-p "Important Call" (caar result)))
+            (should (string-match-p "Important Call" (car (cadr result)))))))
     (test-chime-check-event-teardown)))
 
 (ert-deftest test-chime-check-event-zero-interval-returns-right-now-message ()
@@ -119,13 +121,13 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (timestamp-str (test-timestamp-string event-time))
              (event `((times . ((,timestamp-str . ,event-time)))
                       (title . "Daily Standup")
-                      (intervals . (0)))))
+                      (intervals . ((0 . high))))))
         (with-test-time now
           (let ((result (chime--check-event event)))
             (should (listp result))
             (should (= 1 (length result)))
-            (should (string-match-p "Daily Standup" (car result)))
-            (should (string-match-p "right now" (car result))))))
+            (should (string-match-p "Daily Standup" (caar result)))
+            (should (string-match-p "right now" (caar result))))))
     (test-chime-check-event-teardown)))
 
 ;;; Boundary Cases
@@ -142,7 +144,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (timestamp-str (test-timestamp-string event-time))
              (event `((times . ((,timestamp-str . ,event-time)))
                       (title . "Future Event")
-                      (intervals . (10)))))
+                      (intervals . ((10 . medium))))))
         (with-test-time now
           (let ((result (chime--check-event event)))
             (should (listp result))
@@ -160,7 +162,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
              (timestamp-str (test-timestamp-string event-time t))  ; all-day format
              (event `((times . ((,timestamp-str . ,event-time)))
                       (title . "All Day Event")
-                      (intervals . (10)))))
+                      (intervals . ((10 . medium))))))
         (with-test-time now
           (let ((result (chime--check-event event)))
             (should (listp result))
@@ -178,7 +180,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
       (let* ((now (test-time-today-at 14 0))
              (event `((times . (()))
                       (title . "No Times Event")
-                      (intervals . (10)))))
+                      (intervals . ((10 . medium))))))
         (with-test-time now
           (let ((result (chime--check-event event)))
             (should (listp result))

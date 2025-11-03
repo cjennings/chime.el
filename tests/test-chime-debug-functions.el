@@ -153,7 +153,7 @@
   (unwind-protect
       (let ((chime-enable-modeline t)
             (chime-modeline-lookahead-minutes 60)
-            (chime-alert-time '(10))
+            (chime-alert-intervals '((10 . medium)))
             (org-agenda-files '("/tmp/test.org")))
         ;; Clear messages buffer
         (with-current-buffer (get-buffer-create "*Messages*")
@@ -168,7 +168,7 @@
             (should (string-match-p "Mode enabled:" content))
             (should (string-match-p "chime-enable-modeline:" content))
             (should (string-match-p "chime-modeline-lookahead-minutes:" content))
-            (should (string-match-p "chime-alert-time:" content))
+            (should (string-match-p "chime-alert-intervals:" content))
             (should (string-match-p "Org agenda files" content))
             (should (string-match-p "=== End Chime Debug ===" content)))))
     (test-chime-debug-functions-teardown)))

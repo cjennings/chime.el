@@ -50,8 +50,8 @@
 (defun test-chime-gather-info-setup ()
   "Setup function run before each test."
   (chime-create-test-base-dir)
-  ;; Reset to default alert time
-  (setq chime-alert-time '(10)))
+  ;; Reset to default alert intervals
+  (setq chime-alert-intervals '((10 . medium))))
 
 (defun test-chime-gather-info-teardown ()
   "Teardown function run after each test."
@@ -83,8 +83,8 @@ REFACTORED: Uses dynamic timestamps"
             (should (assoc 'marker-pos info))
             ;; Title should be extracted
             (should (string-equal "Team Meeting" (cdr (assoc 'title info))))
-            ;; Intervals should include default alert time
-            (should (member 10 (cdr (assoc 'intervals info))))))
+            ;; Intervals should include default alert interval as cons cell
+            (should (member '(10 . medium) (cdr (assoc 'intervals info))))))
         (kill-buffer test-buffer))
     (test-chime-gather-info-teardown)))
 

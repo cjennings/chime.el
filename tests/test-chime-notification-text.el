@@ -72,7 +72,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (result (chime--notification-text str-interval event)))
         ;; Should format: "Team Meeting at 02:30 PM (in X minutes)"
@@ -89,7 +89,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 9 15))
-             (str-interval (cons (test-timestamp-string time) 5))
+             (str-interval (cons (test-timestamp-string time) '(5 . medium)))
              (event '((title . "Standup")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Standup" result))
@@ -104,7 +104,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 0 0))
-             (str-interval (cons (test-timestamp-string time) 30))
+             (str-interval (cons (test-timestamp-string time) '(30 . medium)))
              (event '((title . "Midnight Event")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Midnight Event" result))
@@ -119,7 +119,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 12 0))
-             (str-interval (cons (test-timestamp-string time) 15))
+             (str-interval (cons (test-timestamp-string time) '(15 . medium)))
              (event '((title . "Lunch")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Lunch" result))
@@ -134,7 +134,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 0))
-             (str-interval (cons (test-timestamp-string time) 0))
+             (str-interval (cons (test-timestamp-string time) '(0 . high)))
              (event '((title . "Current Event")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Current Event" result))
@@ -151,7 +151,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 15 45))
-             (str-interval (cons (test-timestamp-string time) 20))
+             (str-interval (cons (test-timestamp-string time) '(20 . medium)))
              (long-title "This is a very long event title that contains many words and might wrap in the notification display")
              (event `((title . ,long-title)))
              (result (chime--notification-text str-interval event)))
@@ -168,7 +168,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 16 30))
-             (str-interval (cons (test-timestamp-string time) 5))
+             (str-interval (cons (test-timestamp-string time) '(5 . medium)))
              (event '((title . "Review: Alice's PR #123 (urgent!)")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Review: Alice's PR #123 (urgent!)" result))
@@ -182,7 +182,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-display-time-format-string "%H:%M")  ; 24-hour format
              (result (chime--notification-text str-interval event)))
@@ -199,7 +199,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 18 0))
-             (str-interval (cons (test-timestamp-string time) 120))  ; 2 hours
+             (str-interval (cons (test-timestamp-string time) '(120 . low)))  ; 2 hours
              (event '((title . "Evening Event")))
              (result (chime--notification-text str-interval event)))
         (should (string-match-p "Evening Event" result))
@@ -217,7 +217,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "")))
              (result (chime--notification-text str-interval event)))
         ;; Should still format, even with empty title
@@ -233,7 +233,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '())  ; No title
              (result (chime--notification-text str-interval event)))
         ;; Should still generate output with nil title
@@ -251,7 +251,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (chime-notification-text-format "%t"))
         (let ((result (chime--notification-text str-interval event)))
@@ -266,7 +266,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (chime-notification-text-format "%t at %T"))
         (let ((result (chime--notification-text str-interval event)))
@@ -281,7 +281,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (chime-notification-text-format "%t (%u)"))
         (let ((result (chime--notification-text str-interval event)))
@@ -296,7 +296,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (chime-notification-text-format "%t - %T"))
         (let ((result (chime--notification-text str-interval event)))
@@ -311,7 +311,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Team Meeting")))
              (chime-notification-text-format "%T: %t"))
         (let ((result (chime--notification-text str-interval event)))
@@ -326,7 +326,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-notification-text-format "%t@%T"))
         (let ((result (chime--notification-text str-interval event)))
@@ -341,7 +341,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-notification-text-format "%t (%u)")
              (chime-time-left-format-short "in %mm"))
@@ -359,7 +359,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-display-time-format-string "%H:%M"))
         (let ((result (chime--notification-text str-interval event)))
@@ -375,7 +375,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-display-time-format-string "%I:%M%p"))
         (let ((result (chime--notification-text str-interval event)))
@@ -390,7 +390,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Meeting")))
              (chime-display-time-format-string "%I:%M %P"))
         (let ((result (chime--notification-text str-interval event)))
@@ -405,7 +405,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 9 15))
-             (str-interval (cons (test-timestamp-string time) 5))
+             (str-interval (cons (test-timestamp-string time) '(5 . medium)))
              (event '((title . "Standup")))
              (chime-display-time-format-string "%H:%M"))
         (let ((result (chime--notification-text str-interval event)))
@@ -420,7 +420,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 0 0))
-             (str-interval (cons (test-timestamp-string time) 30))
+             (str-interval (cons (test-timestamp-string time) '(30 . medium)))
              (event '((title . "Midnight")))
              (chime-display-time-format-string "%H:%M"))
         (let ((result (chime--notification-text str-interval event)))
@@ -437,7 +437,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Very Long Meeting Title That Goes On And On")))
              (chime-max-title-length nil))
         (let ((result (chime--notification-text str-interval event)))
@@ -452,7 +452,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Very Long Meeting Title That Goes On")))
              (chime-max-title-length 25))
         (let ((result (chime--notification-text str-interval event)))
@@ -468,7 +468,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Very Long Meeting Title")))
              (chime-max-title-length 15))
         (let ((result (chime--notification-text str-interval event)))
@@ -483,7 +483,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Very Long Title")))
              (chime-max-title-length 10))
         (let ((result (chime--notification-text str-interval event)))
@@ -498,7 +498,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Short")))
              (chime-max-title-length 25))
         (let ((result (chime--notification-text str-interval event)))
@@ -514,7 +514,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '((title . "Exactly Twenty-Five C")))  ; 21 chars
              (chime-max-title-length 21))
         (let ((result (chime--notification-text str-interval event)))
@@ -530,7 +530,7 @@ REFACTORED: Uses dynamic timestamps"
   (test-chime-notification-text-setup)
   (unwind-protect
       (let* ((time (test-time-tomorrow-at 14 30))
-             (str-interval (cons (test-timestamp-string time) 10))
+             (str-interval (cons (test-timestamp-string time) '(10 . medium)))
              (event '())  ; No title
              (chime-max-title-length 25))
         (let ((result (chime--notification-text str-interval event)))

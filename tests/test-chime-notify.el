@@ -50,7 +50,6 @@
   ;; Reset notification settings
   (setq chime-notification-title "Agenda")
   (setq chime-notification-icon nil)
-  (setq chime-alert-severity 'medium)
   (setq chime-extra-alert-plist nil)
   (setq chime-play-sound t)
   ;; Use a simple test path for sound file
@@ -141,12 +140,12 @@
         (cl-letf* ((chime-play-sound nil)
                    (chime-notification-title "Custom Title")
                    (chime-notification-icon "/path/to/icon.png")
-                   (chime-alert-severity 'high)
                    (chime-extra-alert-plist '(:persistent t))
                    ;; Mock alert to capture parameters
                    ((symbol-function 'alert)
                     (lambda (msg &rest args) (setq alert-params args))))
-          (chime--notify "Test Event")
+          ;; Pass cons cell (message . severity) to chime--notify
+          (chime--notify (cons "Test Event" 'high))
           ;; Verify alert was called with correct parameters
           (should (equal (plist-get alert-params :title) "Custom Title"))
           (should (equal (plist-get alert-params :icon) "/path/to/icon.png"))

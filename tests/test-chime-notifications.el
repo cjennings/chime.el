@@ -68,7 +68,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
         (with-test-time now
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
-                          (intervals . (10))))
+                          (intervals . ((10 . medium)))))
                  (result (chime--notifications event)))
             ;; Should return list with one pair
             (should (listp result))
@@ -88,7 +88,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
         (with-test-time now
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
-                          (intervals . (10 5))))  ; Two intervals, only 10 matches
+                          (intervals . ((10 . medium) (5 . medium)))))  ; Two intervals, only 10 matches
                  (result (chime--notifications event)))
             ;; Should return only matching interval
             (should (listp result))
@@ -111,7 +111,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
           (let* ((event `((times . ((,timestamp-str-1 . ,event-time-1)
                                      (,timestamp-str-2 . ,event-time-2)))
                           (title . "Test Event")
-                          (intervals . (10))))  ; Only first time matches
+                          (intervals . ((10 . medium)))))  ; Only first time matches
                  (result (chime--notifications event)))
             ;; Should return only matching time
             (should (listp result))
@@ -134,7 +134,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
           (let* ((event `((times . ((,timestamp-str-1 . ,event-time-1)
                                      (,timestamp-str-2 . ,event-time-2)))
                           (title . "Test Event")
-                          (intervals . (10 5))))  ; Both match (10 with first, 5 with second)
+                          (intervals . ((10 . medium) (5 . medium)))))  ; Both match (10 with first, 5 with second)
                  (result (chime--notifications event)))
             ;; Should return both matching pairs
             (should (listp result))
@@ -154,7 +154,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
         (with-test-time now
           (let* ((event `((times . ((,timestamp-str . ,event-time)))
                           (title . "Test Event")
-                          (intervals . (0))))
+                          (intervals . ((0 . high)))))
                  (result (chime--notifications event)))
             ;; Should return one matching pair
             (should (listp result))
@@ -176,7 +176,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
           (let* ((event `((times . ((,timestamp-str-day . ,event-time)  ; Day-wide
                                      (,timestamp-str-timed . ,event-time)))  ; Timed
                           (title . "Test Event")
-                          (intervals . (10))))
+                          (intervals . ((10 . medium)))))
                  (result (chime--notifications event)))
             ;; Should return only timed event
             (should (listp result))
@@ -195,7 +195,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
         (with-test-time now
           (let* ((event `((times . (()))
                           (title . "Test Event")
-                          (intervals . (10))))
+                          (intervals . ((10 . medium)))))
                  (result (chime--notifications event)))
             (should (listp result))
             (should (= 0 (length result))))))
@@ -231,7 +231,7 @@ REFACTORED: Uses dynamic timestamps and with-test-time"
         (with-test-time now
           (let* ((event `((times . (nil))
                           (title . "Test Event")
-                          (intervals . (10))))
+                          (intervals . ((10 . medium)))))
                  (result (chime--notifications event)))
             (should (listp result))
             (should (= 0 (length result))))))

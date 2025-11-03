@@ -1,0 +1,368 @@
+#+TITLE: Alert Intervals & Severity Refactoring
+#+DATE: 2025-11-02
+#+AUTHOR: Work in Progress
+
+* Overview
+
+** Goal
+Refactor notification system to pair alert timing with urgency levels as atomic units (cons cells), eliminating possibility of mismatch bugs.
+
+** Why This Change?
+Current design has two separate variables that can get out of sync:
+- ~chime-alert-time~ - list of minutes before event to notify
+- ~chime-alert-severity~ - single severity for ALL notifications
+
+Problem: Cannot have different urgency for "60 min before" vs "at event time".
+
+** Solution
+Replace with single variable containing cons cells pairing time with severity:
+#+begin_src elisp
+;; OLD (separate, can mismatch)
+(setq chime-alert-time '(10 5 0))
+(setq chime-alert-severity 'medium)  ; applies to all 3
+
+;; NEW (paired, can't mismatch)
+(setq chime-alert-intervals
+      '((10 . medium)    ; 10 min before: medium urgency
+        (5  . medium)    ; 5 min before: medium urgency
+        (0  . high)))    ; at event: high urgency
+#+end_src
+
+** Breaking Changes
+This is a BREAKING CHANGE for alpha users. Since we're in alpha, making this breaking change now before wider adoption.
+
+** Estimate
+~1.5 hours total:
+- Production code: 6 changes (30-40 min)
+- Tests: 3 files (20-30 min)
+- New tests: 2-3 tests (15-20 min)
+- Documentation: 2 places (10 min)
+
+* Implementation Plan
+
+** Phase 1: Update Variable Definitions
+*** DONE Understand current code flow
+*** TODO Replace chime-alert-time defcustom (line 74)
+- Change name to ~chime-alert-intervals~
+- Accept list of cons cells: ~((MINUTES . SEVERITY) ...)~
+- Update validation in :set function
+- Update docstring with examples
+
+*** TODO Remove chime-alert-severity defcustom (line 242)
+- Delete entire defcustom
+- No longer needed - severity comes from cons cells
+
+** Phase 2: Update Production Code
+*** TODO chime--gather-info (line 1411)
+Current:
+#+begin_src elisp
+(intervals . ,(-flatten (list chime-alert-time)))
+#+end_src
+
+New: Store intervals as cons cells with severity
+#+begin_src elisp
+(intervals . ,chime-alert-intervals)
+#+end_src
+
+*** TODO chime--notifications (line 553-563)
+Current: Pairs timestamps with interval numbers
+#+begin_src elisp
+(defun chime--notifications (event)
+  "Get notifications for given EVENT.
+Returns a list of time information interval pairs."
+  (->> (list
+        (chime--filter-day-wide-events (cdr (assoc 'times event)))
+        (cdr (assoc 'intervals event)))
+       (apply '-table-flat (lambda (ts int) (list ts int)))
+       (--filter (not (null (car it))))
+       (--filter (chime--timestamp-within-interval-p (cdar it) (cadr it)))))
+#+end_src
+
+New: Need to extract minutes from cons cell for timestamp matching, return full cons
+- Extract ~(car interval)~ for time matching
+- Keep full cons cell ~(time . severity)~ in result
+- Result format: ~((timestamp . time-value) (minutes . severity))~
+
+*** TODO chime--check-event (line 808-812)
+Current:
+#+begin_src elisp
+(defun chime--check-event (event)
+  "Get notifications for given EVENT.
+Returns a list of notification messages"
+  (->> (chime--notifications event)
+       (--map (chime--notification-text `(,(caar it) . ,(cadr it)) event))))
+#+end_src
+
+New: Extract severity from cons cell and pass it through
+- Need to thread severity through to notify function
+- May need to return list of (message . severity) pairs
+
+*** TODO chime--notify (line 1182-1203)
+Current:
+#+begin_src elisp
+(defun chime--notify (event-msg)
+  "Notify about an event using `alert' library.
+EVENT-MSG is a string representation of the event."
+  ;; ... sound handling ...
+  (apply
+   'alert event-msg
+   :icon chime-notification-icon
+   :title chime-notification-title
+   :severity chime-alert-severity  ; <-- USES GLOBAL
+   :category 'chime
+   chime-extra-alert-plist))
+#+end_src
+
+New: Accept severity as parameter
+#+begin_src elisp
+(defun chime--notify (event-msg severity)
+  "Notify about an event using `alert' library.
+EVENT-MSG is a string representation of the event.
+SEVERITY is the alert severity level (high, medium, low)."
+  ;; ... sound handling ...
+  (apply
+   'alert event-msg
+   :icon chime-notification-icon
+   :title chime-notification-title
+   :severity severity  ; <-- USE PARAMETER
+   :category 'chime
+   chime-extra-alert-plist))
+#+end_src
+
+*** TODO Find all callers of chime--notify
+Update all call sites to pass severity parameter.
+
+** Phase 3: Update Tests
+*** TODO test-chime-gather-info.el
+**** Line 54: Setup function
+Change:
+#+begin_src elisp
+(setq chime-alert-time '(10))
+#+end_src
+To:
+#+begin_src elisp
+(setq chime-alert-intervals '((10 . medium)))
+#+end_src
+
+**** Verify intervals
+Update tests that check 'intervals property to expect cons cells
+
+*** TODO test-chime-notify.el
+**** Lines 53, 144: Remove chime-alert-severity
+Remove these lines:
+#+begin_src elisp
+(setq chime-alert-severity 'medium)
+(chime-alert-severity 'high)
+#+end_src
+
+**** Update notify function calls
+Add severity parameter to all test calls of chime--notify
+
+**** Add new test
+Test that different severities are passed correctly:
+#+begin_src elisp
+(ert-deftest test-chime-notify-respects-severity-parameter ()
+  "Test that severity parameter is passed to alert."
+  ...)
+#+end_src
+
+*** TODO test-chime-debug-functions.el
+Update any references to chime-alert-time to use new format
+
+*** TODO Add integration tests
+**** Test multiple intervals with different severities
+#+begin_src elisp
+(ert-deftest test-chime-multiple-intervals-different-severities ()
+  "Test that events with multiple intervals notify with correct severity."
+  (let ((chime-alert-intervals '((60 . low) (10 . medium) (0 . high))))
+    ...))
+#+end_src
+
+**** Test severity flows through pipeline
+Verify that severity from cons cell reaches alert call
+
+** Phase 4: Update Documentation
+*** TODO README.org
+Update all examples showing alert configuration:
+- Quick start examples
+- Configuration section
+- Advanced usage
+
+*** TODO chime.el comments
+**** Line 45: Package-level comment
+**** Line 50: Commentary section
+**** Line 1125: Validation error message
+
+*** TODO Update docstrings
+Review all function docstrings that mention intervals/severity
+
+* Current Status
+
+** ✅ Completed
+- [X] Analyzed current code structure
+- [X] Identified all locations needing changes
+- [X] Created implementation plan
+- [X] Created this tracking document
+
+** 🔄 In Progress
+- [ ] Nothing currently in progress
+
+** ⏳ Not Started
+- [ ] All implementation phases
+
+* Code Locations Reference
+
+** Key Variables
+| Variable               | Location | Action  | Notes                    |
+|------------------------+----------+---------+--------------------------|
+| chime-alert-time       | Line 74  | Replace | Rename to -intervals     |
+| chime-alert-severity   | Line 242 | Delete  | No longer needed         |
+
+** Key Functions
+| Function               | Location      | Change Type | Notes                          |
+|------------------------+---------------+-------------+--------------------------------|
+| chime--gather-info     | Line 1411     | Modify      | Store cons cells               |
+| chime--notifications   | Line 553-563  | Modify      | Extract/preserve severity      |
+| chime--check-event     | Line 808-812  | Modify      | Thread severity through        |
+| chime--notify          | Line 1182-1203| Add param   | Accept severity parameter      |
+
+** Test Files
+| File                           | Changes Needed                        |
+|--------------------------------+---------------------------------------|
+| test-chime-gather-info.el      | Update setup, verify cons cells       |
+| test-chime-notify.el           | Remove severity var, add param tests  |
+| test-chime-debug-functions.el  | Update format                         |
+| (new tests)                    | Multi-severity integration tests      |
+
+* Data Flow Analysis
+
+** Current Flow
+#+begin_example
+chime-alert-time (list of numbers)
+    ↓
+chime--gather-info stores in event.intervals
+    ↓
+chime--notifications pairs with timestamps
+    ↓
+chime--check-event creates notification messages
+    ↓
+chime--notify uses global chime-alert-severity
+#+end_example
+
+** New Flow
+#+begin_example
+chime-alert-intervals (list of (time . severity) cons)
+    ↓
+chime--gather-info stores cons cells in event.intervals
+    ↓
+chime--notifications pairs with timestamps, preserves severity
+    ↓
+chime--check-event creates (message . severity) pairs
+    ↓
+chime--notify receives severity as parameter
+#+end_example
+
+* Example Transformations
+
+** Before
+#+begin_src elisp
+;; Configuration
+(setq chime-alert-time '(60 30 10 0))
+(setq chime-alert-severity 'medium)
+
+;; Internal representation
+'((times . timestamps)
+  (intervals . (60 30 10 0))
+  ...)
+
+;; Notification - all same severity
+(chime--notify "Meeting in 60 minutes")  ; uses global 'medium
+(chime--notify "Meeting in 10 minutes")  ; uses global 'medium
+(chime--notify "Meeting now")            ; uses global 'medium
+#+end_src
+
+** After
+#+begin_src elisp
+;; Configuration
+(setq chime-alert-intervals
+      '((60 . low)     ; early warning: low urgency
+        (30 . low)
+        (10 . medium)  ; getting close: medium urgency
+        (0  . high)))  ; at event: high urgency
+
+;; Internal representation
+'((times . timestamps)
+  (intervals . ((60 . low) (30 . low) (10 . medium) (0 . high)))
+  ...)
+
+;; Notification - severity per interval
+(chime--notify "Meeting in 60 minutes" 'low)     ; low urgency
+(chime--notify "Meeting in 10 minutes" 'medium)  ; medium urgency
+(chime--notify "Meeting now" 'high)              ; high urgency
+#+end_src
+
+* Testing Strategy
+
+** Unit Tests
+1. Test cons cell validation in defcustom
+2. Test chime--gather-info stores cons cells correctly
+3. Test chime--notifications preserves severity
+4. Test chime--notify receives and uses severity parameter
+
+** Integration Tests
+1. End-to-end: intervals → gather → notify with correct severity
+2. Multiple events with different interval configurations
+3. Edge case: empty intervals list
+
+** Manual Testing Checklist
+- [ ] Set intervals with different severities
+- [ ] Trigger notifications at each interval
+- [ ] Verify correct urgency in system notifications
+- [ ] Check modeline display not affected
+- [ ] Verify tooltip not affected
+
+* Migration Notes for Users
+
+** Alpha Breaking Change Notice
+#+begin_example
+BREAKING CHANGE in v0.7.0: Alert configuration format changed
+
+Old format (no longer supported):
+  (setq chime-alert-time '(10 5 0))
+  (setq chime-alert-severity 'medium)
+
+New format (required):
+  (setq chime-alert-intervals '((10 . medium) (5 . medium) (0 . high)))
+
+Migration guide:
+1. Combine your alert times with desired severity
+2. Replace chime-alert-time with chime-alert-intervals
+3. Remove chime-alert-severity (no longer used)
+#+end_example
+
+* Notes & Decisions
+
+** Design Decisions
+- Using cons cells instead of alists/plists for simplicity
+- Breaking change acceptable because package is alpha
+- Not providing backward compatibility (clean break)
+- Severity validation happens in defcustom :set function
+
+** Potential Issues
+- [ ] Check if any async code needs updating
+- [ ] Verify sound still plays correctly with new flow
+- [ ] Ensure chime-extra-alert-plist still works
+
+** Questions to Resolve
+- Should we validate that severity is one of (high medium low)?
+- Should single integer format auto-upgrade to cons with default severity?
+- What severity for day-wide events?
+
+* Session Notes
+
+** 2025-11-02: Initial Planning
+- Discussed UX implications of separate vs paired time/severity
+- Decided on cons cell approach for data integrity
+- Created implementation plan
+- Estimated ~1.5 hours for complete implementation
+- Created this tracking document
