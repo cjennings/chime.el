@@ -78,8 +78,9 @@ This package is NOT YET available on MELPA.
   :commands (chime-mode chime-check)
   :bind ("C-c A" . chime-check)
   :config
-  ;; Notification times: 5 minutes before and at event time
-  (setq chime-alert-time '(5 0))
+  ;; Alert intervals: (minutes . severity) pairs
+  ;; Notify 5 minutes before (medium urgency) and at event time (high urgency)
+  (setq chime-alert-intervals '((5 . medium) (0 . high)))
 
   ;; Chime sound
   (setq chime-play-sound t)
@@ -91,7 +92,6 @@ This package is NOT YET available on MELPA.
 
   ;; Notification settings
   (setq chime-notification-title "Reminder")
-  (setq chime-alert-severity 'medium)
 
   ;; Don't filter by TODO keywords - notify for all events
   (setq chime-keyword-whitelist nil)
@@ -128,8 +128,8 @@ clone the package somewhere, then add
   (add-to-list 'load-path  "/path/to/chime.el/")
   (require 'chime)
 
-  ;; Notify 5 minutes before and at event time
-  (setq chime-alert-time '(5 0))
+  ;; Alert intervals: notify 5 minutes before (medium) and at event time (high)
+  (setq chime-alert-intervals '((5 . medium) (0 . high)))
 
   ;; Enable notifications
   (chime-mode 1)
@@ -167,17 +167,21 @@ Lower values make notifications more responsive but increase system load. Higher
 
 **Note:** Changes take effect after restarting chime-mode (=M-x chime-mode= twice, or restart Emacs).
 
-*** Alert Times
+*** Alert Intervals
 
-Set when to receive notifications (in minutes before event):
+Set when to receive notifications and their urgency levels using (minutes . severity) pairs:
 
 #+BEGIN_SRC elisp
-;; Single notification 10 minutes before
-(setq chime-alert-time 10)
+;; Single notification 10 minutes before with medium urgency
+(setq chime-alert-intervals '((10 . medium)))
 
-;; Multiple notifications: 10 min, 5 min, and at event time
-(setq chime-alert-time '(10 5 0))
+;; Multiple notifications with escalating urgency
+(setq chime-alert-intervals '((10 . low)     ;; 10 min before: low urgency
+                               (5 . medium)   ;; 5 min before: medium urgency
+                               (0 . high)))   ;; At event time: high urgency
 #+END_SRC
+
+Severity levels (=high=, =medium=, =low=) control notification urgency and may affect how your notification system displays them.
 
 *** Chime Sound
 
@@ -426,8 +430,8 @@ For maximum modeline space savings:
 ;; Notification title
 (setq chime-notification-title "Reminder")
 
-;; Notification severity (low, medium, high)
-(setq chime-alert-severity 'medium)
+;; Note: Severity is now configured per-interval in chime-alert-intervals
+;; See "Alert Intervals" section above
 #+END_SRC
 
 *** Filtering
@@ -726,7 +730,7 @@ After setup, birthdays will:
 <2025-10-25 Sat 14:00>
 #+END_SRC
 
-Will notify at 14:00 (if =chime-alert-time= includes =0=).
+Will notify at 14:00 (if =chime-alert-intervals= includes =(0 . severity)=).
 
 *** Events with SCHEDULED or DEADLINE
 
@@ -796,8 +800,8 @@ For Monday-Friday events, you can either:
     ;; Polling interval: check every 60 seconds (default)
     (setq chime-check-interval 60)
 
-    ;; Notification times: 5 minutes before and at event time
-    (setq chime-alert-time '(5 0))
+    ;; Alert intervals: 5 minutes before (medium) and at event time (high)
+    (setq chime-alert-intervals '((5 . medium) (0 . high)))
 
     ;; Chime sound
     (setq chime-play-sound t)
@@ -815,7 +819,6 @@ For Monday-Friday events, you can either:
 
     ;; Notification settings
     (setq chime-notification-title "Reminder")
-    (setq chime-alert-severity 'medium)
 
     ;; Don't filter by TODO keywords - notify for all events
     (setq chime-keyword-whitelist nil)
@@ -995,7 +998,7 @@ If you're migrating from org-wild-notifier, you'll need to update your configura
    - =org-wild-notifier-mode= → =chime-mode=
    - =org-wild-notifier-check= → =chime-check=
 
-4. Note: The =:WILD_NOTIFIER_NOTIFY_BEFORE:= / =:CHIME_NOTIFY_BEFORE:= property has been removed. Use the global =chime-alert-time= variable instead (e.g., =(setq chime-alert-time '(30 15 5 0))=).
+4. Note: The =:WILD_NOTIFIER_NOTIFY_BEFORE:= / =:CHIME_NOTIFY_BEFORE:= property has been removed. Use the global =chime-alert-intervals= variable instead (e.g., =(setq chime-alert-intervals '((30 . low) (15 . medium) (5 . medium) (0 . high)))=).
 
 ** Development
 :PROPERTIES:
