@@ -427,6 +427,29 @@ Minimum recommended value: 10 characters."
            (warn "chime-max-title-length: Values below 5 may produce illegible titles"))
          (set-default symbol value)))
 
+(defcustom chime-tooltip-header-format "Upcoming Events as of %a %b %d %Y @ %I:%M %p"
+  "Format string for tooltip header showing current date/time.
+Uses `format-time-string' codes. See Info node `(elisp)Time Parsing' for details.
+
+Common format codes:
+  %a - Abbreviated weekday (Mon, Tue, ...)
+  %A - Full weekday name (Monday, Tuesday, ...)
+  %b - Abbreviated month (Jan, Feb, ...)
+  %B - Full month name (January, February, ...)
+  %d - Day of month, zero-padded (01-31)
+  %e - Day of month, space-padded ( 1-31)
+  %Y - Four-digit year (2025)
+  %I - Hour (01-12, 12-hour format)
+  %H - Hour (00-23, 24-hour format)
+  %M - Minute (00-59)
+  %p - AM/PM indicator
+
+Default: \"Upcoming Events as of %a %b %d %Y @ %I:%M %p\"
+Result: \"Upcoming Events as of Tue Nov 04 2025 @ 08:25 PM\""
+  :package-version '(chime . "0.7.0")
+  :group 'chime
+  :type 'string)
+
 (defcustom chime-play-sound t
   "Whether to play a sound when notifications are displayed.
 When non-nil, plays the sound file specified in `chime-sound-file'."
@@ -917,7 +940,8 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
            (events-to-show (seq-take upcoming-events max-events))
            (remaining (- (length upcoming-events) (length events-to-show)))
            (grouped (chime--group-events-by-day events-to-show))
-           (lines (list "Upcoming Events:\n")))
+           (header (concat (format-time-string chime-tooltip-header-format) "\n"))
+           (lines (list header)))
       ;; Build tooltip text
       (dolist (day-group grouped)
         (let ((date-str (car day-group))
