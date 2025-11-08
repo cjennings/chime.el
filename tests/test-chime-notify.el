@@ -90,7 +90,7 @@
     (test-chime-notify-teardown)))
 
 (ert-deftest test-chime-notify-uses-beep-when-no-sound-file-specified ()
-  "Test that beep is used when chime-sound-file is nil."
+  "Test that no sound is played when chime-sound-file is nil."
   (test-chime-notify-setup)
   (unwind-protect
       (let ((beep-called nil)
@@ -104,9 +104,9 @@
                    ((symbol-function 'alert)
                     (lambda (msg &rest args) (setq alert-called t))))
           (chime--notify "Standup in 5 minutes")
-          ;; Should call beep
-          (should beep-called)
-          ;; Should show alert
+          ;; Should NOT call beep (no sound when chime-sound-file is nil)
+          (should-not beep-called)
+          ;; Should still show alert
           (should alert-called)))
     (test-chime-notify-teardown)))
 

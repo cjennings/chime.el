@@ -194,7 +194,7 @@ Control the audible chime that plays when notifications appear:
 ;; Use custom sound file (defaults to bundled chime.wav)
 (setq chime-sound-file "/path/to/your/chime.wav")
 
-;; Disable sound, use system beep instead
+;; Disable sound completely (no sound file, no beep)
 (setq chime-sound-file nil)
 #+END_SRC
 
@@ -228,7 +228,7 @@ The modeline text is interactive - you can click it and hover for more informati
 Hover your mouse over the modeline event to see a tooltip showing all upcoming events within the lookahead window, grouped by day:
 
 #+BEGIN_EXAMPLE
-Upcoming Events:
+Upcoming Events as of Mon Oct 28 2024 @ 02:00 PM
 
 Today, Oct 28:
 ─────────────

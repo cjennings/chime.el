@@ -463,12 +463,12 @@ When non-nil, plays the sound file specified in `chime-sound-file'."
                     (file-name-directory (or load-file-name buffer-file-name)))
   "Path to sound file to play when notifications are displayed.
 Defaults to the bundled chime.wav file.
-Set to nil to use Emacs default beep instead.
+Set to nil to disable sound completely (no sound file, no beep).
 Should be an absolute path to a .wav, .au, or other sound file
 supported by your system."
   :package-version '(chime . "0.6.0")
   :group 'chime
-  :type '(choice (const :tag "Use system beep" nil)
+  :type '(choice (const :tag "No sound" nil)
                  (file :tag "Sound file path")))
 
 (defcustom chime-startup-delay 10
@@ -1239,14 +1239,11 @@ MSG-SEVERITY is a cons cell (MESSAGE . SEVERITY) where MESSAGE is the
 notification text and SEVERITY is one of high, medium, or low."
   (let* ((event-msg (if (consp msg-severity) (car msg-severity) msg-severity))
          (severity (if (consp msg-severity) (cdr msg-severity) 'medium)))
-    ;; Play sound if enabled
-    (when chime-play-sound
+    ;; Play sound if enabled and sound file is specified
+    (when (and chime-play-sound chime-sound-file)
       (condition-case err
-          (if chime-sound-file
-              (when (file-exists-p chime-sound-file)
-                (play-sound-file chime-sound-file))
-            ;; Use default Emacs bell/beep if no file specified
-            (beep))
+          (when (file-exists-p chime-sound-file)
+            (play-sound-file chime-sound-file))
         (error
          (message "chime: Failed to play sound: %s"
                   (error-message-string err)))))
