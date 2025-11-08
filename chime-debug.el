@@ -180,7 +180,7 @@ loaded after Emacs startup. Useful for diagnosing hydration delays.
 
 To enable:
   (setq chime-debug t)
-  (require 'chime)
+  (require \\='chime)
   (chime-debug-monitor-event-loading)"
   (interactive)
   ;; Record startup time

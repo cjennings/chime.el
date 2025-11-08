@@ -20,12 +20,6 @@ ALL_TESTS = $(UNIT_TESTS) $(INTEGRATION_TESTS)
 # Emacs batch flags
 EMACS_BATCH = $(EMACS) --batch --no-site-file --no-site-lisp
 
-# Colors for output (if terminal supports it)
-COLOR_GREEN = \033[0;32m
-COLOR_RED = \033[0;31m
-COLOR_BLUE = \033[0;34m
-COLOR_RESET = \033[0m
-
 .PHONY: help test test-all test-unit test-integration test-file test-name clean
 
 # Default target
@@ -48,38 +42,38 @@ help:
 test: test-all
 
 test-all:
-	@echo "$(COLOR_BLUE)Running all tests ($(words $(ALL_TESTS)) files)...$(COLOR_RESET)"
+	@echo "[i] Running all tests ($(words $(ALL_TESTS)) files)..."
 	@$(MAKE) test-unit
 	@$(MAKE) test-integration
-	@echo "$(COLOR_GREEN)✓ All tests complete$(COLOR_RESET)"
+	@echo "[✓] All tests complete"
 
 # Run unit tests only
 test-unit:
-	@echo "$(COLOR_BLUE)Running unit tests ($(words $(UNIT_TESTS)) files)...$(COLOR_RESET)"
+	@echo "[i] Running unit tests ($(words $(UNIT_TESTS)) files)..."
 	@failed=0; \
 	for test in $(UNIT_TESTS); do \
 		echo "  Testing $$test..."; \
 		(cd $(TEST_DIR) && $(EMACS_BATCH) -l ert -l $$(basename $$test) -f ert-run-tests-batch-and-exit) || failed=$$((failed + 1)); \
 	done; \
 	if [ $$failed -eq 0 ]; then \
-		echo "$(COLOR_GREEN)✓ All unit tests passed$(COLOR_RESET)"; \
+		echo "[✓] All unit tests passed"; \
 	else \
-		echo "$(COLOR_RED)✗ $$failed unit test file(s) failed$(COLOR_RESET)"; \
+		echo "[✗] $$failed unit test file(s) failed"; \
 		exit 1; \
 	fi
 
 # Run integration tests only
 test-integration:
-	@echo "$(COLOR_BLUE)Running integration tests ($(words $(INTEGRATION_TESTS)) files)...$(COLOR_RESET)"
+	@echo "[i] Running integration tests ($(words $(INTEGRATION_TESTS)) files)..."
 	@failed=0; \
 	for test in $(INTEGRATION_TESTS); do \
 		echo "  Testing $$test..."; \
 		(cd $(TEST_DIR) && $(EMACS_BATCH) -l ert -l $$(basename $$test) -f ert-run-tests-batch-and-exit) || failed=$$((failed + 1)); \
 	done; \
 	if [ $$failed -eq 0 ]; then \
-		echo "$(COLOR_GREEN)✓ All integration tests passed$(COLOR_RESET)"; \
+		echo "[✓] All integration tests passed"; \
 	else \
-		echo "$(COLOR_RED)✗ $$failed integration test file(s) failed$(COLOR_RESET)"; \
+		echo "[✗] $$failed integration test file(s) failed"; \
 		exit 1; \
 	fi
 
@@ -87,34 +81,34 @@ test-integration:
 # Usage: make test-file FILE=test-chime-notify.el
 test-file:
 ifndef FILE
-	@echo "$(COLOR_RED)Error: FILE parameter required$(COLOR_RESET)"
+	@echo "[✗] Error: FILE parameter required"
 	@echo "Usage: make test-file FILE=test-chime-notify.el"
 	@exit 1
 endif
-	@echo "$(COLOR_BLUE)Running tests in $(FILE)...$(COLOR_RESET)"
+	@echo "[i] Running tests in $(FILE)..."
 	@cd $(TEST_DIR) && $(EMACS_BATCH) -l ert -l $(FILE) -f ert-run-tests-batch-and-exit
-	@echo "$(COLOR_GREEN)✓ Tests in $(FILE) complete$(COLOR_RESET)"
+	@echo "[✓] Tests in $(FILE) complete"
 
 # Run specific test by name/pattern
 # Usage: make test-name TEST=test-chime-check-early-return
 #        make test-name TEST="test-chime-check-*"
 test-name:
 ifndef TEST
-	@echo "$(COLOR_RED)Error: TEST parameter required$(COLOR_RESET)"
+	@echo "[✗] Error: TEST parameter required"
 	@echo "Usage: make test-name TEST=test-chime-check-early-return"
 	@echo "       make test-name TEST='test-chime-check-*'"
 	@exit 1
 endif
-	@echo "$(COLOR_BLUE)Running tests matching pattern: $(TEST)...$(COLOR_RESET)"
+	@echo "[i] Running tests matching pattern: $(TEST)..."
 	@cd $(TEST_DIR) && $(EMACS_BATCH) \
 		-l ert \
 		$(foreach test,$(ALL_TESTS),-l $(notdir $(test))) \
 		--eval '(ert-run-tests-batch-and-exit "$(TEST)")'
-	@echo "$(COLOR_GREEN)✓ Tests matching '$(TEST)' complete$(COLOR_RESET)"
+	@echo "[✓] Tests matching '$(TEST)' complete"
 
 # Clean generated files
 clean:
-	@echo "Cleaning generated files..."
+	@echo "[i] Cleaning generated files..."
 	@find . -name "*.elc" -delete
 	@find $(TEST_DIR) -name "chime-test-*" -delete
-	@echo "$(COLOR_GREEN)✓ Clean complete$(COLOR_RESET)"
+	@echo "[✓] Clean complete"

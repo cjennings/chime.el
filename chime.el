@@ -429,7 +429,8 @@ Minimum recommended value: 10 characters."
 
 (defcustom chime-tooltip-header-format "Upcoming Events as of %a %b %d %Y @ %I:%M %p"
   "Format string for tooltip header showing current date/time.
-Uses `format-time-string' codes. See Info node `(elisp)Time Parsing' for details.
+Uses `format-time-string' codes.
+See Info node `(elisp)Time Parsing' for details.
 
 Common format codes:
   %a - Abbreviated weekday (Mon, Tue, ...)
@@ -689,7 +690,7 @@ Returns a list of (HOURS MINUTES)."
 
 (defun chime-day-wide-notifications (events)
   "Generate notification texts for day-wide EVENTS.
-Returns a list of (MESSAGE . SEVERITY) cons cells with 'medium' severity."
+Returns a list of (MESSAGE . SEVERITY) cons cells with \\='medium severity."
   (->> events
        (-filter 'chime-display-as-day-wide-event)
        (-map 'chime--day-wide-notification-text)
@@ -898,7 +899,7 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
         (now (current-time)))
     (dolist (item upcoming-events)
       (let* ((event-time (cdr (nth 1 item)))
-             (minutes-until (nth 2 item))
+             (_minutes-until (nth 2 item))
              ;; Get date components for calendar day comparison
              (now-decoded (decode-time now))
              (event-decoded (decode-time event-time)))
@@ -1545,10 +1546,12 @@ When called programmatically, returns structured validation results."
 (defun chime--start ()
   "Start the notification timer.  Cancel old one, if any.
 Timer interval is controlled by `chime-check-interval'.
-First check runs after `chime-startup-delay' seconds to allow org-agenda-files to load.
+First check runs after `chime-startup-delay' seconds to allow
+org-agenda-files to load.
 
-Configuration validation happens on the first `chime-check' call, after the startup
-delay has elapsed. This gives startup hooks time to populate org-agenda-files."
+Configuration validation happens on the first `chime-check' call,
+after the startup delay has elapsed.  This gives startup hooks time
+to populate org-agenda-files."
   (chime--stop)
 
   ;; Wait chime-startup-delay seconds before first check
@@ -1629,9 +1632,10 @@ FORMAT-STRING and ARGS are passed to `format'."
 
 Do nothing if a check is already in progress in the background.
 
-On the first call after `chime-mode' is enabled, validates the runtime configuration.
-This happens after `chime-startup-delay', giving startup hooks time to populate
-org-agenda-files. If validation fails, logs an error and skips the check."
+On the first call after `chime-mode' is enabled, validates the runtime
+configuration.  This happens after `chime-startup-delay', giving startup
+hooks time to populate org-agenda-files.  If validation fails, logs an
+error and skips the check."
   (interactive)
 
   ;; Validate configuration on first check only

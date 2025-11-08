@@ -223,8 +223,8 @@ REFACTORED: Uses dynamic timestamps"
             (let ((count (test-chime-modeline--count-in-string "Team Meeting" tooltip)))
               (should (= 1 count)))
 
-            ;; "Upcoming Events:" header should appear exactly once
-            (let ((header-count (test-chime-modeline--count-in-string "Upcoming Events:" tooltip)))
+            ;; "Upcoming Events" header should appear exactly once
+            (let ((header-count (test-chime-modeline--count-in-string "Upcoming Events" tooltip)))
               (should (= 1 header-count))))))
     (test-chime-modeline-teardown)))
 
@@ -271,7 +271,7 @@ REFACTORED: Uses dynamic timestamps"
   "Test that tooltip has proper structure without duplicates.
 
 Tooltip should have:
-- 'Upcoming Events:' header (once, at the beginning)
+- 'Upcoming Events as of...' header (once, at the beginning)
 - Date sections (once per date)
 - Event listings (once per event)
 - No duplicate headers or sections
@@ -298,11 +298,11 @@ REFACTORED: Uses dynamic timestamps"
           (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
             (message "DEBUG: Tooltip structure:\n%s" tooltip)
 
-            ;; Should have exactly one "Upcoming Events:" header
-            (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events:" tooltip)))
+            ;; Should have exactly one "Upcoming Events" header
+            (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events" tooltip)))
 
-            ;; Should start with "Upcoming Events:"
-            (should (string-match-p "^Upcoming Events:" tooltip))
+            ;; Should start with "Upcoming Events as of" (new header format with timestamp)
+            (should (string-match-p "^Upcoming Events as of" tooltip))
 
             ;; Event should appear exactly once
             (should (= 1 (test-chime-modeline--count-in-string "Team Meeting" tooltip))))))
@@ -449,8 +449,8 @@ REFACTORED: Uses dynamic timestamps via testutil-time.el"
 
             (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
               ;; Tooltip structure checks
-              (should (string-match-p "^Upcoming Events:" tooltip))
-              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events:" tooltip)))
+              (should (string-match-p "^Upcoming Events as of" tooltip))
+              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events" tooltip)))
 
               ;; All 14 events should appear in tooltip
               (dotimes (day 7)
@@ -474,8 +474,8 @@ REFACTORED: Uses dynamic timestamps via testutil-time.el"
 
             (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
               ;; Tooltip structure checks
-              (should (string-match-p "^Upcoming Events:" tooltip))
-              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events:" tooltip)))
+              (should (string-match-p "^Upcoming Events as of" tooltip))
+              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events" tooltip)))
 
               ;; First 10 events (days 1-5) should appear in tooltip
               (dotimes (day 5)
@@ -505,8 +505,8 @@ REFACTORED: Uses dynamic timestamps via testutil-time.el"
 
             (let ((tooltip (chime--make-tooltip chime--upcoming-events)))
               ;; Tooltip structure checks
-              (should (string-match-p "^Upcoming Events:" tooltip))
-              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events:" tooltip)))
+              (should (string-match-p "^Upcoming Events as of" tooltip))
+              (should (= 1 (test-chime-modeline--count-in-string "Upcoming Events" tooltip)))
 
               ;; First 2 events (today) should appear in tooltip
               (should (string-match-p "Day1-Event1" tooltip))
