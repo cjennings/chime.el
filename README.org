@@ -274,9 +274,27 @@ This separation allows you to:
 - Keep the modeline focused on imminent events (tactical view)
 - See a broader timeline in the tooltip (strategic view)
 
-***** Click to Jump
+***** Click Actions
 
-Left-click the modeline event to jump directly to that event's org entry in its file. This is useful for quickly viewing or editing event details.
+The modeline supports two click actions:
+
+- **Left-click**: Opens your calendar in a web browser (if configured)
+- **Right-click**: Jumps directly to the event's org entry in its file
+
+To enable left-click calendar access, set your calendar URL:
+
+#+BEGIN_SRC elisp
+;; Open Google Calendar on left-click
+(setq chime-calendar-url "https://calendar.google.com")
+
+;; Or Outlook Calendar
+(setq chime-calendar-url "https://outlook.office.com/calendar")
+
+;; Or any custom calendar web interface
+(setq chime-calendar-url "https://your-calendar-url")
+#+END_SRC
+
+When no calendar URL is set (default), left-click does nothing. Right-click always jumps to the next event in your org file.
 
 **** Customizing Modeline Content
 

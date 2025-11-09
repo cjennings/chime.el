@@ -341,6 +341,22 @@ This setting only takes effect when `chime-enable-modeline' is non-nil."
   :group 'chime
   :type 'string)
 
+(defcustom chime-calendar-url nil
+  "URL to your calendar for browser access.
+When set, left-clicking the modeline icon/text opens this URL in your
+browser.  Right-clicking jumps to the next event in your org file.
+
+Set this to your calendar's web interface, such as:
+  - Google Calendar: \"https://calendar.google.com\"
+  - Outlook: \"https://outlook.office.com/calendar\"
+  - Custom calendar URL
+
+When nil (default), left-click does nothing."
+  :package-version '(chime . "0.7.0")
+  :group 'chime
+  :type '(choice (const :tag "No calendar URL" nil)
+                 (string :tag "Calendar URL")))
+
 (defcustom chime-tooltip-lookahead-hours 8760
   "Hours ahead to look for events in tooltip.
 Separate from modeline lookahead window.
@@ -879,6 +895,19 @@ Reconstructs marker from serialized file path and position."
         (with-no-warnings
           (org-show-entry))))))
 
+(defun chime--open-calendar-url ()
+  "Open calendar URL in browser if `chime-calendar-url' is set."
+  (interactive)
+  (when chime-calendar-url
+    (browse-url chime-calendar-url)))
+
+(defun chime--jump-to-first-event ()
+  "Jump to first event in `chime--upcoming-events' list."
+  (interactive)
+  (when-let* ((first-event (car chime--upcoming-events))
+              (event (car first-event)))
+    (chime--jump-to-event event)))
+
 (defun chime--format-event-for-tooltip (event-time-str minutes-until title)
   "Format a single event line for tooltip display.
 EVENT-TIME-STR is the time string, MINUTES-UNTIL is minutes until event,
@@ -967,12 +996,16 @@ Returns an alist of (DATE-STRING . EVENTS-LIST)."
       (apply #'concat (nreverse lines)))))
 
 (defun chime--propertize-modeline-string (text soonest-event)
-  "Add tooltip and click handler to modeline TEXT for SOONEST-EVENT."
+  "Add tooltip and click handlers to modeline TEXT for SOONEST-EVENT.
+Left-click opens calendar URL (if set), right-click jumps to event."
   (if (null chime--upcoming-events)
       text
     (let ((map (make-sparse-keymap))
           (tooltip (chime--make-tooltip chime--upcoming-events)))
-      (define-key map [mode-line mouse-1]
+      ;; Left-click: open calendar URL
+      (define-key map [mode-line mouse-1] #'chime--open-calendar-url)
+      ;; Right-click: jump to event
+      (define-key map [mode-line mouse-3]
         (lambda ()
           (interactive)
           (chime--jump-to-event soonest-event)))
@@ -1097,9 +1130,15 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours
               ;; Show indicator when no events within lookahead window
               ;; but events exist in tooltip window
               (when (and upcoming chime-modeline-no-events-text)
-                (propertize chime-modeline-no-events-text
-                           'help-echo (chime--make-tooltip upcoming)
-                           'mouse-face 'mode-line-highlight))))
+                (let ((map (make-sparse-keymap)))
+                  ;; Left-click: open calendar URL
+                  (define-key map [mode-line mouse-1] #'chime--open-calendar-url)
+                  ;; Right-click: jump to first event in tooltip
+                  (define-key map [mode-line mouse-3] #'chime--jump-to-first-event)
+                  (propertize chime-modeline-no-events-text
+                             'help-echo (chime--make-tooltip upcoming)
+                             'mouse-face 'mode-line-highlight
+                             'local-map map)))))
       ;; Force update ALL windows/modelines, not just current buffer
       (force-mode-line-update t))))
 
