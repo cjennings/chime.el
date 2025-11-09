@@ -1,0 +1,236 @@
+* Claude Code Session Notes
+This file contains important information for Claude to remember between sessions.
+
+** User Information
+*** Calendar Location
+Craig's calendar is available at: =/home/cjennings/sync/org/gcal.org=
+
+Use this to:
+- Check meeting times and schedules
+- Verify when events occurred
+- See what's upcoming
+
+*** Working Style
+- Craig uses Emacs as primary tool
+- Prefers detailed preparation before high-stakes meetings
+- Values practice/role-play for negotiations and general learning
+- Makes decisions based on principles and timeline arguments
+- Prefers written documentation over verbal agreements
+
+** Session Protocols
+*** "Let's wrap it up" / "That's a wrap" - End of Session Routine
+When Craig says "let's wrap it up" or "that's a wrap", execute this sequence:
+
+1. *Update notes*: Add anything important to remember for next session to this file (CLAUDE-NOTES.org)
+   - Session summary if significant work was done
+   - Critical reminders for tomorrow
+   - Any new conventions or preferences learned
+
+2. *Git commit and push*: Commit all changes in the repository and push to remote
+   - Use descriptive commit message
+   - Ensure working tree is clean
+   - Confirm push succeeded
+
+3. *Final exchange*: Brief valediction/good wishes before Craig closes laptop
+   - Keep it warm but concise
+   - Acknowledge the day's work if appropriate
+   - "Good night" / "Talk tomorrow" / similar
+
+This ensures clean handoff between sessions and nothing gets lost.
+
+** File Format Preferences
+*** ALWAYS Use Org-Mode Format
+The user uses Emacs as their primary tool. *ALWAYS* create new documentation files in =.org= format, not =.md= (markdown).
+
+*Rationale*:
+- Org-mode files are well-supported in Emacs
+- Can be easily exported to any other format (HTML, PDF, Markdown, etc.)
+- Better integration with user's workflow
+
+*Exception*: Only use .md if specifically requested or if the file is intended for GitHub/web display where markdown is expected.
+
+*** NEVER Use Spaces in Filenames
+*ALWAYS* use hyphens (=-=) to separate words in filenames. Underscores (=_=) are also acceptable.
+
+*Rationale*:
+- Spaces cause problems with links across different operating systems
+- User works with Mac, Windows, Linux, and potentially other systems
+- Hyphens create more reliable, portable filenames
+- Easier to work with in command-line tools
+
+*Examples*:
+- ✓ Good: =project-meeting-notes.org=
+- ✓ Good: =change-log-2025-11-04.md=
+- ✗ Bad: =project meeting notes.org=
+- ✗ Bad: =change log 2025.11.04.md=
+
+** File Naming Conventions
+*** Files Too Large to Read
+PDFs or other files that are too large for Claude to read should be prefixed with =TOOLARGE-= to prevent read errors that halt the session.
+
+Example:
+- Original: =assets/large-architectural-plans.pdf=
+- Renamed: =assets/TOOLARGE-large-architectural-plans.pdf=
+
+*** Unreadable Binary Files (.docx Format)
+Binary .docx files cannot be read directly by Claude. When encountering these files:
+- Convert to markdown format using pandoc: =pandoc file.docx -o file.md=
+- Keep the original .docx file for reference
+- Work with the converted .md file for analysis and editing
+
+*** CRITICAL: Always Keep todo.org Links Current
+Many documents are linked in =todo.org= using org-mode =file:= links. Craig relies on these links being valid at all times.
+
+*MANDATORY WORKFLOW - When renaming or moving ANY file*:
+
+1. *BEFORE renaming*: Search =todo.org= for ALL references to that file
+   - Use grep or search tools to find both filename and partial matches
+   - Check both in TODO items and in event log sections
+
+2. *Rename or move the file*
+
+3. *IMMEDIATELY AFTER*: Update ALL =file:= links in =todo.org= to the new path/filename
+   - Update links in Open Work section
+   - Update links in event logs
+   - Update links in Reference Info section
+
+4. *Verify*: Test a few updated links to ensure they point to valid files
+
+Example workflow:
+#+begin_example
+# Step 1: Search before renaming
+grep -n "2025-10-15-invoice.pdf" todo.org
+
+# Step 2: Rename the file
+mv documents/2025-10-15-invoice.pdf documents/2025-10-15-vendor-invoice.pdf
+
+# Step 3: Update all references in todo.org
+# Edit todo.org and change:
+#   file:documents/2025-10-15-invoice.pdf
+# to:
+#   file:documents/2025-10-15-vendor-invoice.pdf
+
+# Step 4: Verify the link works
+#+end_example
+
+*Why This is Critical*:
+- =todo.org= is the primary task tracking and reference system
+- Event logs document the complete history with file references
+- Craig depends on clicking links to access documents quickly
+- Broken links disrupt workflow and make documentation unreliable
+
+*NEVER rename or move files without updating todo.org links in the same session.*
+
+** Session Start Routine
+*** Reminders Protocol
+When starting a new session with the user, check this section and remind them of outstanding tasks they've asked to be reminded about. This ensures important follow-up actions aren't forgotten between sessions.
+
+*** Active Reminders
+
+**** Next Session (2025-11-05+)
+1. **Refactor chime--update-modeline** if time permits
+   - Currently 98 lines, needs decomposition into helper functions
+   - See todo.org [#A] task and docs/rearchitecture.org
+
+2. **Discuss code coverage for ERT tests** (investigation)
+   - Explore options for getting coverage reports
+   - Identify which code paths are/aren't tested
+
+When the user says "remind me" about something, add it to:
+1. This section in NOTES.org
+2. /home/cjennings/sync/org/roam/inbox.org as a TODO item
+
+** Project-Specific Context
+
+*** chime.el Project (=/home/cjennings/code/chime.el=)
+
+**** Project Overview
+An Emacs package that monitors org-mode calendar events and provides:
+- Desktop notifications at configurable intervals before events
+- Next event display in the Emacs modeline with tooltip
+- Smart handling of timed vs all-day events
+- Integration with org-agenda, org-gcal, and org-contacts
+
+**** Current Status (as of 2025-11-08 Evening)
+- Version: 0.6.0 (alpha, moving toward 0.7.0 beta)
+- Main file: =chime.el= (1,720 lines, 54 functions)
+- Debug utilities: =chime-debug.el= (separate file)
+- Tests: 505 tests across 35 test files (up from 489)
+- **Goal**: Prepare for MELPA/ELPA submission and beta release
+
+**Recent Session Progress (2025-11-08)**:
+- ✅ Fixed Makefile - Replaced ANSI colors with plain text symbols ([i], [✓], [✗])
+- ✅ Fixed all linter warnings (5 in chime.el, 1 in chime-debug.el)
+- ✅ Updated README - Fixed tooltip header format, sound behavior docs
+- ✅ **BREAKING**: Changed =chime-sound-file nil= to mean NO sound (was: beep)
+- ✅ **NEW FEATURE**: Calendar URL integration (=chime-calendar-url=)
+  - Left-click modeline → opens calendar in browser
+  - Right-click → jumps to event in org file
+  - Breaking change: old left-click behavior moved to right-click
+- ✅ Started comprehensive test coverage expansion (quality-engineer.org)
+  - Added 3 new test files: =test-chime--time==, =test-chime--today=, =test-chime--truncate-title=
+  - Added 16 new tests (all passing)
+  - 22 more test files planned for untested functions
+- **Next up**: Continue writing comprehensive unit tests, user testing calendar URL feature
+
+**** Completed Major Features
+1. ✅ **Severity Refactor** (commit f570c33)
+   - Replaced separate =chime-alert-time= + =chime-alert-severity= variables
+   - Now uses =chime-alert-intervals= with cons cells: ='((10 . medium) (0 . high))=
+   - Allows different urgency per notification interval
+   - Breaking change (acceptable in alpha)
+
+2. ✅ **All-Day Events Enhancement**
+   - Advance notice for birthdays, conferences: "tomorrow", "in 2 days", etc.
+   - New variables: =chime-day-wide-advance-notice=, =chime-tooltip-show-all-day-events=
+   - Function: =chime-event-within-advance-notice-window=
+   - Comprehensive test suite in =test-chime-all-day-events.el=
+
+3. ✅ **Calendar URL Integration** (commit 9b90606)
+   - New variable: =chime-calendar-url= (defaults to nil)
+   - Left-click modeline → opens calendar in browser (if URL set)
+   - Right-click modeline → jumps to event in org file
+   - Breaking change: old left-click behavior moved to right-click
+   - Provides external (browser) vs internal (org) navigation pattern
+
+**** Remaining Work Before Beta/MELPA
+All work items tracked in =todo.org= (product roadmap).
+
+Key tasks include:
+- Refactor chime--update-modeline (currently 98 lines → target <30)
+- Add section headers for navigation
+- Improve inline documentation
+- Create test data builders
+- Add architecture documentation
+- Plus additional bugs/enhancements/docs in todo.org
+
+**See =todo.org= for complete list of open work.**
+
+**** Key Architecture Decisions
+- **Async-first**: Uses subprocess for org-agenda-list to avoid blocking UI
+- **Single file**: At 1,676 lines, appropriate size (org-gcal is 2,187 lines)
+- **Alist-based events**: Not migrating to cl-defstruct (too much churn)
+- **Global state**: 5 defvars with clear ownership
+- **Performance**: Bottleneck is org-mode's agenda-list, not chime code
+
+**** Documentation Files
+- =README.org= - User-facing documentation
+- =docs/rearchitecture.org= - Architecture analysis and refactoring plan
+- =docs/IMPLEMENTATION_NOTES.org= - All-day events implementation details (historical)
+- =docs/SEVERITY_REFACTOR.org= - Severity refactor details (complete)
+- =docs/TESTING.org= - Test suite reference
+- =docs/DEBUG_EVENT_LOADING.org= - Debug tooling guide
+- =docs/ELISP_LINT_SETUP.org= - Linting setup
+
+**** Testing Infrastructure
+- Makefile with fuzzy matching: =make test-file FILE=validate=, =make test-one TEST=pilot=
+- Dynamic timestamps (no hardcoded dates) via =testutil-time.el=
+- Test categories: normal/boundary/error cases
+- 339 tests with comprehensive coverage
+
+**** Next Steps for MELPA Submission
+1. Complete all "Remaining Work Before Beta/MELPA" items above
+2. Run full test suite and linting
+3. Review package metadata and headers
+4. Prepare MELPA pull request
+5. After MELPA acceptance, consider ELPA submission
