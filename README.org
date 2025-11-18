@@ -1,0 +1,1081 @@
+
+* *CHIME Heralds Imminent Events*
+
+Customizable org notifications for Emacs with visual alerts, audible chimes, and modeline display.
+
+** Table of Contents
+
+- [[#about][About]]
+- [[#features][Features]]
+- [[#installation][Installation]]
+- [[#quick-start][Quick Start]]
+- [[#configuration][Configuration]]
+- [[#usage][Usage]]
+- [[#known-limitations][Known Limitations]]
+- [[#full-example-configuration][Full Example Configuration]]
+- [[#manual-check][Manual Check]]
+- [[#troubleshooting][Troubleshooting]]
+- [[#requirements][Requirements]]
+- [[#testing][Testing]]
+- [[#license][License]]
+- [[#credits][Credits]]
+- [[#migration-from-org-wild-notifier][Migration from org-wild-notifier]]
+- [[#development][Development]]
+
+** About
+:PROPERTIES:
+:CUSTOM_ID: about
+:END:
+
+CHIME (backronym: *CHIME Heralds Imminent Events*) provides notification support for your org-agenda events. Get visual notifications, a pleasant chime sound, and see your next upcoming event in your modeline.
+
+This is an updated and maintained fork of the abandoned [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]] project, renamed to CHIME with bug-fixes and new features.
+
+Note: while I've found this package to be quite reliable, it's still undergoing feature development and will be changing frequently. 
+
+** Features
+:PROPERTIES:
+:CUSTOM_ID: features
+:END:
+
+- *Visual notifications* with customizable alert times
+- *Audible chime sound* when notifications are displayed
+- *Interactive modeline display* of next upcoming event with extensive customization:
+  - Enable/disable modeline modifications
+  - Hover tooltip showing all upcoming events grouped by day
+  - Click to jump directly to event's org entry
+  - Customize notification text format (show/hide time, countdown, or title)
+  - Choose 12-hour or 24-hour time display
+  - Customize time-until format (verbose or compact)
+  - Configurable lookahead window and tooltip event limit
+- Multiple notification times per event (e.g., 5 minutes before and at event time)
+- Works with SCHEDULED and DEADLINE and just plain ol' regular timestamps
+- Supports repeating timestamps (=+1w=, =.+1d=, =++1w=)
+- Async background checking (runs every minute)
+- Configurable notification filtering by keywords and tags
+- [[https://github.com/cjennings/chime.el/tree/main/tests][Well-tested]], including with org-gcal
+
+** Installation
+:PROPERTIES:
+:CUSTOM_ID: installation
+:END:
+
+This package is NOT YET available on MELPA.
+
+*** package-vc-install (Emacs 29+)
+
+#+BEGIN_SRC elisp
+(unless (package-installed-p 'chime)
+  (package-vc-install "https://github.com/cjennings/chime.el"))
+#+END_SRC
+
+*** use-package with :vc (Emacs 29+)
+
+#+BEGIN_SRC elisp
+(use-package chime
+  :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
+  :after alert
+  :commands (chime-mode chime-check)
+  :bind ("C-c A" . chime-check)
+  :config
+  ;; Alert intervals: (minutes . severity) pairs
+  ;; Notify 5 minutes before (medium urgency) and at event time (high urgency)
+  (setq chime-alert-intervals '((5 . medium) (0 . high)))
+
+  ;; Chime sound
+  (setq chime-play-sound t)
+
+  ;; Modeline display (see "Modeline Display" section for more options)
+  (setq chime-enable-modeline t)
+  (setq chime-modeline-lookahead-minutes 60)
+  (setq chime-modeline-format " ⏰ %s")
+
+  ;; Notification settings
+  (setq chime-notification-title "Reminder")
+
+  ;; Don't filter by TODO keywords - notify for all events
+  (setq chime-keyword-whitelist nil)
+  (setq chime-keyword-blacklist nil)
+
+  ;; Only notify for non-done items
+  (setq chime-predicate-blacklist
+        '(chime-done-keywords-predicate))
+
+  ;; Enable chime-mode automatically
+  (chime-mode 1))
+#+END_SRC
+
+*** Manual Installation (Recommended for Development)
+
+#+BEGIN_SRC elisp
+;; Add to load-path
+(add-to-list 'load-path "~/path/to/chime.el")
+
+;; Load and configure
+(require 'chime)
+#+END_SRC
+
+** Quick Start
+:PROPERTIES:
+:CUSTOM_ID: quick-start
+:END:
+
+Minimal configuration:
+
+clone the package somewhere, then add 
+
+#+BEGIN_SRC elisp
+  (add-to-list 'load-path  "/path/to/chime.el/")
+  (require 'chime)
+
+  ;; Alert intervals: notify 5 minutes before (medium) and at event time (high)
+  (setq chime-alert-intervals '((5 . medium) (0 . high)))
+
+  ;; Enable notifications
+  (chime-mode 1)
+#+END_SRC
+
+** Configuration
+:PROPERTIES:
+:CUSTOM_ID: configuration
+:END:
+
+*** Polling Interval
+
+Control how often chime checks for upcoming events:
+
+#+BEGIN_SRC elisp
+;; Default: check every 60 seconds (1 minute) - recommended for most users
+(setq chime-check-interval 60)
+
+;; More responsive: check every 30 seconds
+(setq chime-check-interval 30)
+
+;; Reduce polling overhead: check every 5 minutes
+(setq chime-check-interval 300)
+#+END_SRC
+
+Lower values make notifications more responsive but increase system load. Higher values reduce polling overhead but may delay notifications slightly.
+
+**Choosing a polling interval:**
+
+- *120-300 seconds (2-5 minutes)*: Okay for reducing system load, but most people require more timely notifications. 
+- *60 seconds (default)*: Ideal for most users. Matches org's minute-based timestamps and provides timely notifications with minimal overhead.
+- *30 seconds*: Fine if you want quicker notification delivery. Reasonable resource usage.
+- *15-10 seconds*: Maximum responsiveness, but you're polling 4-6 times more frequently for marginal precision gain on minute-based events.
+- *Below 10 seconds*: Not recommended or supported. Org events are scheduled to the minute. Faster polling provides near-zero benefit while significantly increasing CPU, disk I/O, and battery usage.
+
+**Note:** Changes take effect after restarting chime-mode (=M-x chime-mode= twice, or restart Emacs).
+
+*** Alert Intervals
+
+Set when to receive notifications and their urgency levels using (minutes . severity) pairs:
+
+#+BEGIN_SRC elisp
+;; Single notification 10 minutes before with medium urgency
+(setq chime-alert-intervals '((10 . medium)))
+
+;; Multiple notifications with escalating urgency
+(setq chime-alert-intervals '((10 . low)     ;; 10 min before: low urgency
+                               (5 . medium)   ;; 5 min before: medium urgency
+                               (0 . high)))   ;; At event time: high urgency
+#+END_SRC
+
+Severity levels (=high=, =medium=, =low=) control notification urgency and may affect how your notification system displays them.
+
+*** Chime Sound
+
+Control the audible chime that plays when notifications appear:
+
+#+BEGIN_SRC elisp
+;; Enable/disable chime sound (default: t)
+(setq chime-play-sound t)
+
+;; Use custom sound file (defaults to bundled chime.wav)
+(setq chime-sound-file "/path/to/your/chime.wav")
+
+;; Disable sound completely (no sound file, no beep)
+(setq chime-sound-file nil)
+#+END_SRC
+
+The package includes a pleasant chime sound in GPL-compatible WAV format. You can use your own sound file if preferred.
+
+*** Modeline Display
+
+Display your next upcoming event in your modeline:
+
+#+BEGIN_SRC elisp
+;; Enable/disable modeline display (default: t)
+(setq chime-enable-modeline t)
+
+;; Show events up to 60 minutes ahead (default: 60)
+(setq chime-modeline-lookahead-minutes 60)
+
+;; Customize the modeline prefix format (default: " ⏰ %s")
+(setq chime-modeline-format " [Next: %s]")
+#+END_SRC
+
+The modeline will display the soonest event within the lookahead window, formatted as:
+- Default: =⏰ Meeting with Team at 02:30 PM (in 15 minutes)=
+- Updates automatically every minute
+
+**** Interactive Modeline Features
+
+The modeline text is interactive - you can click it and hover for more information:
+
+***** Tooltip
+
+Hover your mouse over the modeline event to see a tooltip showing all upcoming events within the lookahead window, grouped by day:
+
+#+BEGIN_EXAMPLE
+Upcoming Events as of Mon Oct 28 2024 @ 02:00 PM
+
+Today, Oct 28:
+─────────────
+Team Meeting at 02:10 PM (in 10 minutes)
+Code Review at 02:30 PM (in 30 minutes)
+Coffee break at 02:45 PM (in 45 minutes)
+
+Tomorrow, Oct 29:
+─────────────
+Sprint Planning at 09:00 AM (tomorrow)
+Quarterly Review at 02:00 PM (tomorrow)
+#+END_EXAMPLE
+
+The tooltip displays up to 5 events by default. Configure the maximum with:
+
+#+BEGIN_SRC elisp
+;; Show up to 10 events in tooltip
+(setq chime-modeline-tooltip-max-events 10)
+
+;; Show all events in lookahead window (beware -- no limit!)
+(setq chime-modeline-tooltip-max-events nil)
+#+END_SRC
+
+***** Tooltip Lookahead Window
+
+The tooltip can show events beyond the modeline lookahead window. By default, it shows events up to 1 year (8760 hours) in the future, while the modeline only shows events within the next hour:
+
+#+BEGIN_SRC elisp
+;; Modeline shows events within next 60 minutes (default)
+(setq chime-modeline-lookahead-minutes 60)
+
+;; Tooltip shows events within next 8760 hours / 1 year (default)
+(setq chime-tooltip-lookahead-hours 8760)
+
+;; Example: Show only today's events in tooltip (24 hours)
+(setq chime-tooltip-lookahead-hours 24)
+
+;; Example: Show events for the next week in tooltip
+(setq chime-tooltip-lookahead-hours 168)  ; 7 days × 24 hours
+#+END_SRC
+
+This separation allows you to:
+- Keep the modeline focused on imminent events (tactical view)
+- See a broader timeline in the tooltip (strategic view)
+
+***** Click Actions
+
+The modeline supports two click actions:
+
+- **Left-click**: Opens your calendar in a web browser (if configured)
+- **Right-click**: Jumps directly to the event's org entry in its file
+
+To enable left-click calendar access, set your calendar URL:
+
+#+BEGIN_SRC elisp
+;; Open Google Calendar on left-click
+(setq chime-calendar-url "https://calendar.google.com")
+
+;; Or Outlook Calendar
+(setq chime-calendar-url "https://outlook.office.com/calendar")
+
+;; Or any custom calendar web interface
+(setq chime-calendar-url "https://your-calendar-url")
+#+END_SRC
+
+When no calendar URL is set (default), left-click does nothing. Right-click always jumps to the next event in your org file.
+
+**** Customizing Modeline Content
+
+Control what information appears in the modeline with fine-grained formatting:
+
+***** Notification Text Format
+
+Customize which components are shown:
+
+#+BEGIN_SRC elisp
+;; Default: title, time, and countdown
+(setq chime-notification-text-format "%t at %T (%u)")
+;; → "Meeting with Team at 02:30 PM (in 15 minutes)"
+
+;; Title and time only (no countdown)
+(setq chime-notification-text-format "%t at %T")
+;; → "Meeting with Team at 02:30 PM"
+
+;; Title and countdown only (no time)
+(setq chime-notification-text-format "%t (%u)")
+;; → "Meeting with Team (in 15 minutes)"
+
+;; Title only (minimal)
+(setq chime-notification-text-format "%t")
+;; → "Meeting with Team"
+
+;; Custom separator
+(setq chime-notification-text-format "%t - %T")
+;; → "Meeting with Team - 02:30 PM"
+
+;; Time first
+(setq chime-notification-text-format "%T: %t")
+;; → "02:30 PM: Meeting with Team"
+#+END_SRC
+
+Available placeholders:
+- =%t= - Event title
+- =%T= - Event time (formatted per =chime-display-time-format-string=)
+- =%u= - Time until event (formatted per =chime-time-left-format-*=)
+
+***** Event Time Format
+
+Choose between 12-hour and 24-hour time display:
+
+#+BEGIN_SRC elisp
+;; 12-hour with AM/PM (default)
+(setq chime-display-time-format-string "%I:%M %p")
+;; → "02:30 PM"
+
+;; 24-hour format
+(setq chime-display-time-format-string "%H:%M")
+;; → "14:30"
+
+;; 12-hour without space before AM/PM
+(setq chime-display-time-format-string "%I:%M%p")
+;; → "02:30PM"
+
+;; 12-hour with lowercase am/pm
+(setq chime-display-time-format-string "%I:%M %P")
+;; → "02:30 pm"
+#+END_SRC
+
+Available format codes:
+- =%I= - Hour (01-12, 12-hour format)
+- =%H= - Hour (00-23, 24-hour format)
+- =%M= - Minutes (00-59)
+- =%p= - AM/PM (uppercase)
+- =%P= - am/pm (lowercase)
+
+***** Time-Until Format
+
+Customize how the countdown is displayed:
+
+#+BEGIN_SRC elisp
+;; Default: verbose format
+(setq chime-time-left-format-short "in %M")      ; Under 1 hour
+(setq chime-time-left-format-long "in %H %M")    ; 1 hour or more
+;; → "in 10 minutes" or "in 1 hour 30 minutes"
+
+;; Compact format
+(setq chime-time-left-format-short "in %mm")
+(setq chime-time-left-format-long "in %hh %mm")
+;; → "in 10m" or "in 1h 30m"
+
+;; Very compact (no prefix)
+(setq chime-time-left-format-short "%mm")
+(setq chime-time-left-format-long "%hh%mm")
+;; → "10m" or "1h30m"
+
+;; Custom "at event time" message
+(setq chime-time-left-format-at-event "NOW!")
+;; → "NOW!" instead of "right now"
+#+END_SRC
+
+Available format codes (from =format-seconds=):
+- =%h= / =%H= - Hours (number only / with unit name)
+- =%m= / =%M= - Minutes (number only / with unit name)
+
+***** Title Truncation
+
+Limit the length of long event titles to conserve modeline space:
+
+#+BEGIN_SRC elisp
+;; No truncation - show full title (default)
+(setq chime-max-title-length nil)
+;; → " ⏰ Very Long Meeting Title That Goes On And On ( in 10m)"
+
+;; Truncate to 25 characters
+(setq chime-max-title-length 25)
+;; → " ⏰ Very Long Meeting Titl... ( in 10m)"
+
+;; Truncate to 15 characters
+(setq chime-max-title-length 15)
+;; → " ⏰ Very Long Me... ( in 10m)"
+#+END_SRC
+
+**Important:** This setting affects *only the event title* (%t), not the icon, time, or countdown. The icon comes from =chime-modeline-format= and is added separately.
+
+The truncation includes the "..." in the character count, so a 15-character limit means up to 12 characters of title plus "...".
+
+Minimum recommended value: 10 characters.
+
+***** Complete Compact Example
+
+For maximum modeline space savings:
+
+#+BEGIN_SRC elisp
+(setq chime-enable-modeline t)
+(setq chime-modeline-lookahead-minutes 60)
+(setq chime-modeline-format " ⏰%s")                    ; Minimal prefix
+(setq chime-notification-text-format "%t (%u)")        ; No time shown
+(setq chime-time-left-format-short "%mm")              ; Compact short
+(setq chime-time-left-format-long "%hh%mm")            ; Compact long
+(setq chime-max-title-length 20)                       ; Truncate long titles
+;; Result: "⏰Meeting (10m)" or "⏰Very Long Meeti... (1h30m)"
+#+END_SRC
+
+***** Disabling Modeline Display
+
+#+BEGIN_SRC elisp
+;; Completely disable modeline modifications
+(setq chime-enable-modeline nil)
+
+;; Alternative: set lookahead to 0 (legacy method)
+(setq chime-modeline-lookahead-minutes 0)
+#+END_SRC
+
+*** Notification Settings
+
+#+BEGIN_SRC elisp
+;; Notification title
+(setq chime-notification-title "Reminder")
+
+;; Note: Severity is now configured per-interval in chime-alert-intervals
+;; See "Alert Intervals" section above
+#+END_SRC
+
+*** Filtering
+
+#+BEGIN_SRC elisp
+;; Only notify for specific TODO keywords
+(setq chime-keyword-whitelist '("TODO" "NEXT"))
+
+;; Never notify for these keywords
+(setq chime-keyword-blacklist '("DONE" "CANCELLED"))
+
+;; Only notify for specific tags
+(setq chime-tags-whitelist '("@important"))
+
+;; Never notify for these tags
+(setq chime-tags-blacklist '("someday"))
+#+END_SRC
+
+**** Whitelist and Blacklist Precedence
+
+If the same keyword or tag appears in both a whitelist and blacklist, the **blacklist takes precedence** and the item will be filtered out. This ensures sensitive information cannot accidentally be exposed in notifications.
+
+Examples:
+- Item with =TODO= keyword when =TODO= is in both ~chime-keyword-whitelist~ and ~chime-keyword-blacklist~ → **filtered out** (blacklist wins)
+- Item with =:urgent:= tag when =urgent= is in both ~chime-tags-whitelist~ and ~chime-tags-blacklist~ → **filtered out** (blacklist wins)
+- Item with whitelisted keyword but blacklisted tag → **filtered out** (blacklist wins)
+
+Most users configure either whitelists or blacklists, not both. If you use both, ensure they don't overlap to avoid confusion.
+
+*** All-Day Events
+
+Chime distinguishes between *timed events* (with specific times like =10:00=) and *all-day events* (without times, such as birthdays or holidays).
+
+**** What are All-Day Events?
+
+All-day events are org timestamps without a time component:
+
+#+BEGIN_SRC org
+,* Blake's Birthday
+<2025-12-19 Fri>
+
+,* Holiday: Christmas
+<2025-12-25 Thu>
+
+,* Multi-day Conference
+<2025-11-10 Mon>--<2025-11-13 Thu>
+#+END_SRC
+
+Compare with timed events:
+
+#+BEGIN_SRC org
+,* Team Meeting
+<2025-10-28 Tue 14:30-15:30>
+
+,* Doctor Appointment
+SCHEDULED: <2025-10-30 Thu 10:00>
+#+END_SRC
+
+**** Current Behavior
+
+**Modeline:**
+- All-day events are *never* shown in the modeline
+- Only timed events with specific times appear
+- Rationale: Modeline shows urgent, time-sensitive items
+
+**Notifications:**
+- All-day events can trigger notifications at configured times
+- By default, =chime-day-wide-alert-times= is =nil= (notifications disabled)
+- When set, chime will notify you of all-day events happening *today* at those times
+
+**** Configuring All-Day Event Notifications
+
+To receive notifications for all-day events (like birthdays):
+
+#+BEGIN_SRC elisp
+;; Notify at 8:00 AM for all-day events happening today
+(setq chime-day-wide-alert-times '("08:00"))
+
+;; Multiple notification times
+(setq chime-day-wide-alert-times '("08:00" "17:00"))  ; Morning and evening
+
+;; Disable all-day event notifications (default)
+(setq chime-day-wide-alert-times nil)
+#+END_SRC
+
+**Example workflow:**
+1. You have =* Blake's Birthday <2025-12-19 Fri>= in your org file
+2. On December 19th at 8:00 AM, chime notifies: "Blake's Birthday is due or scheduled today"
+3. This gives you a reminder to send birthday wishes or buy a gift
+
+**** Showing Overdue TODOs
+
+Control whether overdue TODO items and past events appear alongside all-day event notifications:
+
+#+BEGIN_SRC elisp
+;; Show overdue items with all-day event notifications (default: t)
+(setq chime-show-any-overdue-with-day-wide-alerts t)
+
+;; Only show today's events, not overdue items from past days
+(setq chime-show-any-overdue-with-day-wide-alerts nil)
+#+END_SRC
+
+**When enabled (default =t=):**
+- Shows today's DEADLINE/SCHEDULED tasks that have passed (e.g., 9am deadline when it's now 2pm)
+- Shows today's all-day events even if you launch Emacs after the alert time (e.g., launch at 10am when alert was 8am)
+- Shows all-day events from past days (e.g., yesterday's birthday, last week's holiday)
+
+**When disabled (=nil=):**
+- Shows today's DEADLINE/SCHEDULED tasks that have passed ✓
+- Shows today's all-day events even if you launch Emacs late ✓
+- Hides all-day events from past days (prevents old birthday/holiday spam) ✓
+
+Most users want the default (=t=) to catch overdue items. Disable it if you only want to see today's events and don't want past birthdays/holidays cluttering notifications.
+
+***** Understanding the Interplay with Alert Times
+
+The relationship between =chime-day-wide-alert-times= and =chime-show-any-overdue-with-day-wide-alerts= can be confusing:
+
+- =chime-day-wide-alert-times= controls **when** notifications fire (e.g., 8:00 AM)
+- =chime-show-any-overdue-with-day-wide-alerts= controls **what happens if you miss that time**
+
+**Example scenario:**
+#+BEGIN_EXAMPLE
+You have:
+  (setq chime-day-wide-alert-times '("08:00"))
+  (setq chime-show-any-overdue-with-day-wide-alerts t)
+
+Today's birthday: * Blake's Birthday <2025-10-28 Tue>
+
+Timeline:
+- 8:00 AM: Chime fires notification "Blake's Birthday is due or scheduled today" ✓
+- You close Emacs at 9:00 AM
+- You relaunch Emacs at 2:00 PM (afternoon)
+- Because overdue alerts are ENABLED (t), chime shows the notification again ✓
+  → This catches you up on today's events you might have missed
+#+END_EXAMPLE
+
+**If you disable overdue alerts:**
+#+BEGIN_EXAMPLE
+  (setq chime-show-any-overdue-with-day-wide-alerts nil)
+
+Same scenario, but now:
+- 8:00 AM: Chime fires notification ✓
+- You close Emacs at 9:00 AM
+- You relaunch Emacs at 2:00 PM
+- Because overdue alerts are DISABLED (nil), chime STILL shows today's birthday ✓
+  → Today's events are always shown regardless of this setting
+  → This setting only hides events from PAST DAYS (yesterday, last week, etc.)
+#+END_EXAMPLE
+
+**Key insight:** You'll always see today's all-day events when you launch Emacs, even if you missed the configured alert time. The =chime-show-any-overdue-with-day-wide-alerts= setting only controls whether you see events from *previous days*.
+
+**** Common Use Cases
+
+**Birthdays:**
+#+BEGIN_SRC org
+,* Blake Michael's Birthday
+<2025-02-20 Thu>
+#+END_SRC
+
+With =chime-day-wide-alert-times= set to ='("08:00")=, you'll get a morning reminder on the birthday.
+
+**Holidays:**
+#+BEGIN_SRC org
+,* Holiday: Thanksgiving
+<2025-11-27 Thu>
+#+END_SRC
+
+**Multi-day Events:**
+#+BEGIN_SRC org
+,* Conference: EmacsCon 2025
+<2025-11-10 Mon>--<2025-11-13 Thu>
+#+END_SRC
+
+You'll receive notifications on each day of the conference at your configured alert times.
+
+**** Integration with org-contacts
+
+If you use [[https://repo.or.cz/org-contacts.git][org-contacts]] for managing contacts and birthdays, chime provides built-in integration to ensure birthdays appear in your agenda and trigger notifications.
+
+**The Problem:**
+
+Org-contacts stores birthdays as properties (=:BIRTHDAY: 1985-03-15=) and uses diary sexps (=%%(org-contacts-anniversaries)=) to display them in your agenda. However, chime's async subprocess doesn't have org-contacts loaded, causing "Bad sexp" errors and preventing birthdays from appearing.
+
+**The Solution:**
+
+Chime provides a two-part solution:
+
+1. **One-time conversion** for existing contacts
+2. **Automatic capture template** for new contacts
+
+Both approaches add plain org timestamps alongside the =:BIRTHDAY:= property, preserving vCard export compatibility while enabling chime notifications.
+
+**Step 1: Convert Existing Contacts**
+
+Use the included conversion script to add birthday timestamps to your existing contacts file:
+
+#+BEGIN_SRC elisp
+;; Load conversion script
+(require 'convert-org-contacts-birthdays
+         (expand-file-name "convert-org-contacts-birthdays.el"
+                          (file-name-directory (locate-library "chime"))))
+
+;; Convert your contacts file IN-PLACE (creates timestamped backup)
+M-x chime-convert-contacts-in-place RET ~/org/contacts.org RET
+#+END_SRC
+
+This modifies your contacts.org file, transforming:
+
+#+BEGIN_SRC org
+,* Alice Anderson
+:PROPERTIES:
+:EMAIL: alice@example.com
+:BIRTHDAY: 1985-03-15
+:END:
+#+END_SRC
+
+Into:
+
+#+BEGIN_SRC org
+,* Alice Anderson
+:PROPERTIES:
+:EMAIL: alice@example.com
+:BIRTHDAY: 1985-03-15
+:END:
+<1985-03-15 Sat +1y>
+#+END_SRC
+
+**Safety:** The script creates a timestamped backup (=contacts.org.backup-YYYY-MM-DD-HHMMSS=) before making any changes.
+
+After conversion, comment out the diary sexp in your schedule file:
+
+#+BEGIN_SRC org
+# %%(org-contacts-anniversaries)
+#+END_SRC
+
+**Step 2: Enable Capture Template for New Contacts**
+
+To automatically add birthday timestamps when capturing new contacts:
+
+#+BEGIN_SRC elisp
+;; Enable org-contacts integration
+(setq chime-org-contacts-file "~/org/contacts.org")
+
+;; Optional: customize capture key (default: "C")
+(setq chime-org-contacts-capture-key "C")
+
+;; Optional: customize heading (default: "Contacts")
+(setq chime-org-contacts-heading "Contacts")
+#+END_SRC
+
+This adds an org-capture template that:
+- Prompts for contact details (name, email, phone, birthday, etc.)
+- Automatically inserts a yearly repeating timestamp if birthday is provided
+- Preserves the =:BIRTHDAY:= property for vCard export
+
+**Using the Capture Template:**
+
+1. Press =C-c c= (or your org-capture binding)
+2. Press =C= (or your configured capture key)
+3. Fill in contact information
+4. Birthday timestamps are added automatically on save
+
+**Template Fields:**
+- Name, Email, Phone, Address
+- Birthday (YYYY-MM-DD or MM-DD format)
+- Nickname, Company, Title, Website
+- Note (instead of free-form text below properties)
+
+**Disabling the Integration:**
+
+Set =chime-org-contacts-file= to =nil= to disable the capture template:
+
+#+BEGIN_SRC elisp
+(setq chime-org-contacts-file nil)  ; Disabled by default
+#+END_SRC
+
+**Result:**
+
+After setup, birthdays will:
+- ✓ Appear in org-agenda
+- ✓ Trigger chime notifications at configured times
+- ✓ Work with chime's async subprocess (no "Bad sexp" errors)
+- ✓ Still export to vCard via org-contacts
+- ✓ Automatically include timestamps for new contacts
+
+** Usage
+:PROPERTIES:
+:CUSTOM_ID: usage
+:END:
+
+*** Basic Event with Timestamp
+
+#+BEGIN_SRC org
+,* Meeting with Team
+<2025-10-25 Sat 14:00>
+#+END_SRC
+
+Will notify at 14:00 (if =chime-alert-intervals= includes =(0 . severity)=).
+
+*** Events with SCHEDULED or DEADLINE
+
+#+BEGIN_SRC org
+,* TODO Call Doctor
+SCHEDULED: <2025-10-25 Sat 10:00>
+#+END_SRC
+
+*** Repeating Events
+
+Repeating timestamps are fully supported:
+
+#+BEGIN_SRC org
+,* TODO Weekly Team Meeting
+SCHEDULED: <2025-10-25 Sat 14:00 +1w>
+
+,* TODO Daily Standup
+SCHEDULED: <2025-10-25 Sat 09:00 +1d>
+
+,* TODO Review Email
+SCHEDULED: <2025-10-25 Sat 08:00 .+1d>
+#+END_SRC
+
+Supported repeaters:
+- =+1w= - Repeat weekly from original date
+- =.+1d= - Repeat daily from completion
+- =++1w= - Repeat weekly from scheduled date
+
+** Known Limitations
+:PROPERTIES:
+:CUSTOM_ID: known-limitations
+:END:
+
+*** S-expression Diary Entries Are Not Supported
+
+Note: org-contacts users will quickly discover the above unsupported format is how org-contacts integrate birthdays into your calendar. If you use org-contacts, you will not be automatically notified about your contacts birthdays. 
+
+Specifically, this format is *not supported*:
+
+#+BEGIN_SRC org
+,* TODO Daily Standup
+SCHEDULED: <%%(memq (calendar-day-of-week date) '(1 2 3 4 5))>
+#+END_SRC
+
+For those using this format outside of org-contacts, your workaround is to use standard repeating timestamps instead:
+
+#+BEGIN_SRC org
+,* TODO Daily Standup
+SCHEDULED: <2025-10-24 Fri 09:00 +1d>
+#+END_SRC
+
+For Monday-Friday events, you can either:
+1. Accept weekend notifications (mark as DONE on weekends)
+2. Create 5 separate entries, one for each weekday with =+1w= repeater
+
+** Full Example Configuration
+:PROPERTIES:
+:CUSTOM_ID: full-example-configuration
+:END:
+
+#+BEGIN_SRC elisp
+  (use-package chime
+    :vc (:url "https://github.com/cjennings/chime.el" :rev :newest)
+    :after alert
+    :commands (chime-mode chime-check)
+    :config
+    ;; Polling interval: check every 60 seconds (default)
+    (setq chime-check-interval 60)
+
+    ;; Alert intervals: 5 minutes before (medium) and at event time (high)
+    (setq chime-alert-intervals '((5 . medium) (0 . high)))
+
+    ;; Chime sound
+    (setq chime-play-sound t)
+    ;; Uses bundled chime.wav by default
+
+    ;; Modeline display - compact format
+    (setq chime-enable-modeline t)
+    (setq chime-modeline-lookahead-minutes 120)                 ; Show events 2 hrs ahead
+    (setq chime-modeline-format " ⏰%s")                ; Minimal prefix
+    (setq chime-notification-text-format "%t (%u)")    ; Title + countdown only
+    (setq chime-display-time-format-string "%H:%M")    ; 24-hour time
+    (setq chime-time-left-format-short "in %mm")       ; Compact: "in 5m"
+    (setq chime-time-left-format-long "%hh%mm")        ; Compact: "1h30m"
+    (setq chime-time-left-format-at-event "NOW!")      ; Custom at-event message
+
+    ;; Notification settings
+    (setq chime-notification-title "Reminder")
+
+    ;; Don't filter by TODO keywords - notify for all events
+    (setq chime-keyword-whitelist nil)
+    (setq chime-keyword-blacklist nil)
+
+    ;; Only notify for non-done items
+    (setq chime-predicate-blacklist
+          '(chime-done-keywords-predicate))
+
+    ;; Enable chime-mode automatically
+    (chime-mode 1))
+#+END_SRC
+
+** Manual Check
+:PROPERTIES:
+:CUSTOM_ID: manual-check
+:END:
+
+You can manually trigger a notification check:
+
+#+BEGIN_SRC elisp
+M-x chime-check
+#+END_SRC
+
+** Troubleshooting
+:PROPERTIES:
+:CUSTOM_ID: troubleshooting
+:END:
+
+*** No notifications appearing
+
+1. Verify chime-mode is enabled: =M-: chime-mode=
+2. Check that alert is configured correctly:
+   #+BEGIN_SRC elisp
+   (setq alert-default-style 'libnotify)  ; or 'notifications on some systems
+   #+END_SRC
+3. Manually test: =M-x chime-check=
+4. Check =*Messages*= buffer for error messages
+
+*** No sound playing
+
+1. Verify sound is enabled: =M-: chime-play-sound= should return =t=
+2. Check sound file exists: =M-: (file-exists-p chime-sound-file)=
+3. Test sound directly: =M-: (play-sound-file chime-sound-file)=
+4. Ensure your system has audio support configured
+
+*** Events not being detected
+
+1. Ensure files are in =org-agenda-files=
+2. Verify timestamps have time components: =<2025-10-25 Sat 14:00>= not =<2025-10-25 Sat>=
+3. Check filtering settings (keyword/tag whitelist/blacklist)
+4. Timestamps support both 24-hour (=14:00=) and 12-hour (=2:00pm=, =2:00 PM=) formats
+
+*** org-contacts diary sexp errors
+
+If you see errors like "Bad sexp at line 2: (let ((entry) (date '(10 29 2025))) (org-contacts-anniversaries))" in your =*emacs:err*= buffer, this is because chime's async subprocess doesn't have org-contacts loaded.
+
+*Symptoms:*
+- No events appear in modeline despite having scheduled items
+- =*emacs:err*= buffer shows "Bad sexp" errors for org-contacts
+- Errors appear repeatedly (every minute during chime checks)
+
+*Solution 1: Load org-contacts in your config (Recommended)*
+
+Add this to your config BEFORE chime loads:
+
+#+BEGIN_SRC elisp
+(require 'org-contacts nil t)  ; Load if available, don't error if missing
+#+END_SRC
+
+Chime will automatically load org-contacts in its async subprocess if it's installed.
+
+*Solution 2: Comment out the sexp line*
+
+In your org file (usually =schedule.org=), comment out or remove:
+
+#+BEGIN_SRC org
+# %%(org-contacts-anniversaries)
+#+END_SRC
+
+*Solution 3: Convert to plain timestamps*
+
+Use the conversion script to generate plain org entries from your contacts.
+
+*Safety Note:* This script is READ-ONLY. It reads from your org-contacts database but never modifies it. The output is written to a new file.
+
+*Step-by-step process:*
+
+1. (Optional but recommended) Backup your org files
+
+2. Load and run the conversion script:
+   #+BEGIN_SRC elisp
+   ;; Load the conversion script (included in chime.el repo)
+   (require 'convert-org-contacts-birthdays
+            (expand-file-name "convert-org-contacts-birthdays.el"
+                             (file-name-directory (locate-library "chime"))))
+
+   ;; Convert contacts to plain org entries
+   M-x chime-convert-contacts-to-file RET ~/birthdays.org RET
+   #+END_SRC
+
+   This creates a NEW file (~/birthdays.org) with entries like:
+   #+BEGIN_SRC org
+   *** John Doe's Birthday
+   <2026-03-15 Sun +1y>
+   #+END_SRC
+
+3. When prompted, allow the script to add =birthdays.org= to =org-agenda-files=
+   (or add it manually later)
+
+4. Comment out or remove the sexp line from your schedule file:
+   #+BEGIN_SRC org
+   # %%(org-contacts-anniversaries)
+   #+END_SRC
+
+5. Restart chime or run =M-x chime-check= to verify birthdays appear without errors
+
+*Why this happens:*
+
+Org-mode diary sexps like =%%(org-contacts-anniversaries)= are dynamic expressions evaluated during agenda building. Chime runs agenda building in an async subprocess for performance, but that subprocess needs the generating package (org-contacts) loaded. Chime includes org-contacts as a soft dependency, but it must be installed for the sexp to work.
+
+*** Multiple Emacs instances producing duplicate notifications
+
+If you receive duplicate notifications for every event, you likely have multiple Emacs processes running with chime-mode enabled.
+
+*Symptoms:*
+- Receiving 2 (or more) identical notifications for each event
+- Notifications appear at the same time but as separate alerts
+
+*Common Scenario:*
+
+You're running chime with an emacsclient connected to an emacs daemon (=emacs --daemon=), then launch a separate Emacs process from the command line. Each process runs its own instance of chime-mode, resulting in duplicate notifications.
+
+*Example:*
+#+BEGIN_SRC bash
+# Start emacs daemon with chime-mode enabled
+emacs --daemon
+
+# Connect with emacsclient (uses daemon - chime runs here)
+emacsclient -c
+
+# Later, accidentally launch standalone Emacs process
+emacs &  # This creates a SECOND chime instance!
+#+END_SRC
+
+*Solution:*
+
+1. Check for multiple Emacs processes:
+   #+BEGIN_SRC bash
+   ps aux | grep emacs
+   #+END_SRC
+
+2. Decide on your preferred architecture:
+   - **Option A**: Use emacs daemon + emacsclient exclusively (recommended for consistency)
+   - **Option B**: Use standalone Emacs processes only (simpler, but separate configs)
+
+3. Kill extra processes:
+   #+BEGIN_SRC bash
+   # To stop the daemon
+   emacsclient -e "(kill-emacs)"
+
+   # Or kill specific process by PID
+   kill <PID>
+   #+END_SRC
+
+4. Verify only one Emacs process is running after cleanup
+
+*Prevention:*
+
+- If using emacs daemon, always connect with =emacsclient -c= instead of launching =emacs=
+- Add shell aliases to prevent accidents:
+  #+BEGIN_SRC bash
+  alias emacs="emacsclient -c -a ''"  # Auto-start daemon if not running
+  #+END_SRC
+
+** Requirements
+:PROPERTIES:
+:CUSTOM_ID: requirements
+:END:
+
+- Emacs 26.1+
+- Org-mode 9.0+
+- =alert= package
+- =dash= package
+- =async= package
+
+** Testing
+:PROPERTIES:
+:CUSTOM_ID: testing
+:END:
+
+Chime includes a comprehensive test suite with 339 tests covering all functionality. For detailed information about running tests, test architecture, and development workflows, see [[file:TESTING.org][TESTING.org]].
+
+Quick start:
+#+BEGIN_SRC bash
+cd tests
+make test       # Run all tests
+make test-file FILE=modeline  # Run specific test file
+#+END_SRC
+
+** License
+:PROPERTIES:
+:CUSTOM_ID: license
+:END:
+
+GPL-3.0
+
+** Credits
+:PROPERTIES:
+:CUSTOM_ID: credits
+:END:
+
+All credit and thanks should go to Artem Khramov for his work on [[https://github.com/akhramov/org-wild-notifier.el][org-wild-notifier]], which served me well for some time. Sadly, the author deprecated org-wild-notifier on Aug 2, 2025 in favor of [[https://github.com/spegoraro/org-alert][org-alert]]. I begain fixing bugs and enhancing the feature set into what is now CHIME. 
+
+I plan to maintain this in appreciation and gratitude of Artem's work, and for the larger Emacs community. 
+
+** Migration from org-wild-notifier
+:PROPERTIES:
+:CUSTOM_ID: migration-from-org-wild-notifier
+:END:
+
+If you're migrating from org-wild-notifier, you'll need to update your configuration:
+
+1. Change package name:
+   - =(require 'org-wild-notifier)= → =(require 'chime)=
+
+2. Update all configured variable names:
+   - =org-wild-notifier-*= → =chime-*=
+
+3. Update configured function names:
+   - =org-wild-notifier-mode= → =chime-mode=
+   - =org-wild-notifier-check= → =chime-check=
+
+4. Note: The =:WILD_NOTIFIER_NOTIFY_BEFORE:= / =:CHIME_NOTIFY_BEFORE:= property has been removed. Use the global =chime-alert-intervals= variable instead (e.g., =(setq chime-alert-intervals '((30 . low) (15 . medium) (5 . medium) (0 . high)))=).
+
+** Development
+:PROPERTIES:
+:CUSTOM_ID: development
+:END:
+
+For information about running tests, test architecture, and development workflows, see [[file:TESTING.org][TESTING.org]].
+

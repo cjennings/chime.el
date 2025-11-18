@@ -1,0 +1,221 @@
+#+TITLE: Chime Test Suite Documentation
+#+AUTHOR: Chime Development Team
+
+* Overview
+
+CHIME includes a comprehensive, future-proof test suite to ensure reliability and prevent regressions:
+
+- *339 total tests* across 23 test files
+  - Fast, isolated unit tests of individual functions
+  - Comprehensive integration scenarios using real org-gcal patterns
+  - *Dynamic timestamp generation* - tests work regardless of current date
+  - No hardcoded dates that expire or cause failures over time
+
+The test suite covers:
+- Timestamp parsing and time calculations
+- All-day event detection and notifications
+- Event filtering (keywords, tags, predicates)
+- Tooltip and modeline formatting
+- Notification text generation
+- Title sanitization and edge cases
+- Real-world org-gcal integration scenarios
+- Overdue TODO handling and day-wide alerts
+- Whitelist/blacklist conflict resolution
+
+* Running Tests with the Makefile
+
+The =tests/= directory includes a comprehensive Makefile for easy test execution and validation:
+
+** Run All Tests
+
+#+BEGIN_SRC bash
+cd tests
+make test
+#+END_SRC
+
+This runs all 339 tests across 23 test files. Expected output:
+
+#+BEGIN_EXAMPLE
+✓ All dependencies found
+Running 339 tests...
+Ran 339 tests, 339 results as expected, 0 unexpected
+✓ All 339 tests passed!
+#+END_EXAMPLE
+
+** Run Tests for a Specific File
+
+Use fuzzy matching to run tests from a single file:
+
+#+BEGIN_SRC bash
+cd tests
+make test-file FILE=modeline
+#+END_SRC
+
+The =FILE= parameter supports partial matching, so these all work:
+- =make test-file FILE=modeline= → runs =test-chime-modeline.el=
+- =make test-file FILE=overdue= → runs =test-chime-overdue-todos.el=
+- =make test-file FILE=notification-text= → runs =test-chime-notification-text.el=
+
+** Run a Single Test
+
+Run one specific test by name (uses fuzzy matching):
+
+#+BEGIN_SRC bash
+cd tests
+make test-one TEST=all-day
+#+END_SRC
+
+Examples:
+- =make test-one TEST=all-day= → runs first test matching "all-day"
+- =make test-one TEST=overdue-disabled= → runs test for overdue disabled behavior
+- =make test-one TEST=sanitize-opening-paren= → runs specific sanitization test
+
+** Run Unit Tests Only
+
+#+BEGIN_SRC bash
+make test-unit
+#+END_SRC
+
+** Run Integration Tests Only
+
+#+BEGIN_SRC bash
+make test-integration
+#+END_SRC
+
+** Run a Specific Test by Name
+
+#+BEGIN_SRC bash
+make test-name TEST=test-chime-check-early-return-on-validation-failure
+#+END_SRC
+
+** Use a Specific Emacs Version
+
+#+BEGIN_SRC bash
+make EMACS=emacs29 test
+#+END_SRC
+
+** Syntax Validation
+
+Validate all Emacs Lisp syntax (checks parentheses balance):
+
+#+BEGIN_SRC bash
+cd tests
+make validate
+#+END_SRC
+
+This runs =check-parens= on all 26 =.el= files (23 test files + chime.el + 2 testutil files).
+
+** Check Test Inventory
+
+See a breakdown of tests by file:
+
+#+BEGIN_SRC bash
+cd tests
+make count
+#+END_SRC
+
+Example output:
+
+#+BEGIN_EXAMPLE
+Test Count by File:
+──────────────────────────────────────────────
+30 tests - test-chime-notification-text.el
+30 tests - test-chime-sanitize-title.el
+25 tests - test-chime-timestamp-parse.el
+...
+──────────────────────────────────────────────
+Total: 339 tests across 23 files
+#+END_EXAMPLE
+
+** Other Makefile Targets
+
+#+BEGIN_SRC bash
+make help           # Show all available targets with descriptions
+make check-deps     # Verify required ELPA dependencies are installed
+make lint           # Run byte-compilation warnings (optional - requires setup)
+#+END_SRC
+
+* Test Architecture
+
+** Dynamic Timestamp Generation
+
+Tests use a dynamic timestamp generation system (=testutil-time.el=) that creates timestamps relative to a stable base time:
+
+#+BEGIN_SRC elisp
+;; Instead of hardcoded dates:
+(encode-time 0 0 14 24 10 2025)  ; Fails after Oct 2025
+
+;; Tests use dynamic generation:
+(test-time-today-at 14 0)        ; Always works
+(test-time-tomorrow-at 9 0)      ; Relative to stable base
+(test-time-days-from-now 7)      ; 7 days from base time
+#+END_SRC
+
+This ensures:
+- Tests never expire or fail due to date changes
+- Time relationships remain consistent
+- Tests can run in any year without modification
+- Easier to understand test intent ("tomorrow at 9am" vs "2025-10-25 09:00")
+
+** Time Mocking
+
+Tests use =with-test-time= macro to mock =current-time= for deterministic testing:
+
+#+BEGIN_SRC elisp
+(let ((now (test-time-today-at 14 0))
+      (event-time (test-time-today-at 14 30)))
+  (with-test-time now
+    ;; Inside this block, current-time returns our mocked "now"
+    ;; Event is 30 minutes in the future
+    (should (chime--should-notify-p event-time 30))))
+#+END_SRC
+
+** Validation Infrastructure
+
+The test suite includes validation to prevent syntax errors:
+
+*** Git Pre-commit Hook
+
+Automatically validates syntax before each commit:
+- Runs =check-parens= on all staged =.el= files
+- Blocks commits with syntax errors
+- Can be bypassed with =--no-verify= if needed
+
+*** Makefile Integration
+
+- =make validate= - Quick syntax check (no external dependencies)
+- =make lint= - Comprehensive linting (requires =elisp-lint= setup)
+
+* Running Tests Manually
+
+If you prefer not to use the Makefile:
+
+#+BEGIN_SRC bash
+cd tests
+
+# Run all tests
+emacs --batch -Q \
+  -L . \
+  -L ~/.emacs.d/elpa/dash-2.20.0 \
+  -L ~/.emacs.d/elpa/alert-20240105.2046 \
+  -L ~/.emacs.d/elpa/async-20250107.2200 \
+  --eval '(dolist (f (directory-files "." t "^test-.*\\.el$")) (load f))' \
+  --eval '(ert-run-tests-batch-and-exit)'
+
+# Run one test file
+emacs --batch -Q -L . -L /path/to/deps \
+  -l test-chime-modeline.el \
+  -f ert-run-tests-batch-and-exit
+#+END_SRC
+
+**Note:** The Makefile is recommended as it automatically finds your ELPA dependencies and provides better output formatting.
+
+* For Developers
+
+For more options and details, run:
+
+#+BEGIN_SRC bash
+make help
+#+END_SRC
+
+This will show all available Makefile targets with descriptions.
