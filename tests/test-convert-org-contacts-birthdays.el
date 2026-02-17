@@ -1,6 +1,6 @@
 ;;; test-convert-org-contacts-birthdays.el --- Tests for convert-org-contacts-birthdays.el -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

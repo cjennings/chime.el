@@ -1,6 +1,6 @@
 ;;; test-chime-gather-info.el --- Tests for chime--gather-info -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

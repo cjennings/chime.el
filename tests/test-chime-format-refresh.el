@@ -1,6 +1,6 @@
 ;;; test-chime-format-refresh.el --- Test format changes are picked up on refresh -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

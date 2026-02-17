@@ -1,6 +1,6 @@
 ;;; test-chime-validate-configuration.el --- Tests for chime-validate-configuration -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;;; Commentary:
 

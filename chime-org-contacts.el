@@ -1,6 +1,6 @@
 ;;; chime-org-contacts.el --- Optional org-contacts integration for chime -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2025 Craig Jennings
+;; Copyright (C) 2025-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 ;; Version: 1.0.0

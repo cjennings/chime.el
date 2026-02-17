@@ -1,6 +1,6 @@
 ;;; test-chime-timestamp-within-interval-p.el --- Tests for chime--timestamp-within-interval-p -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

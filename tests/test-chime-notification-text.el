@@ -1,6 +1,6 @@
 ;;; test-chime-notification-text.el --- Tests for chime--notification-text -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

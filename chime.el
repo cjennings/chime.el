@@ -1,7 +1,7 @@
 ;;; chime.el --- CHIME Heralds Imminent Events -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2017 Artem Khramov
-;; Copyright (C) 2024-2025 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Current Author/Maintainer: Craig Jennings <c@cjennings.net>
 ;; Original Author: Artem Khramov <akhramov+emacs@pm.me>

@@ -1,6 +1,6 @@
 ;;; test-chime-update-modeline.el --- Tests for chime--update-modeline -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

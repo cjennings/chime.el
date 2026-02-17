@@ -1,6 +1,6 @@
 ;;; test-chime-12hour-format.el --- Tests for 12-hour am/pm timestamp parsing -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

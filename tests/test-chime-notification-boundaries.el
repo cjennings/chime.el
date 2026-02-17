@@ -1,6 +1,6 @@
 ;;; test-chime-notification-boundaries.el --- Boundary tests for notification intervals -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 

@@ -1,6 +1,6 @@
 ;;; test-chime-sanitize-title.el --- Tests for chime--sanitize-title -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2024 Craig Jennings
+;; Copyright (C) 2024-2026 Craig Jennings
 
 ;; Author: Craig Jennings <c@cjennings.net>
 
