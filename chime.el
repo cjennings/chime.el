@@ -606,7 +606,7 @@ for org-agenda-files to be populated)."
 Comparison is performed by converted each element of LIST onto string
 in order to ignore seconds."
   (->> list
-       (--map (format-time-string "%d:%H:%M" it))
+       (--map (format-time-string "%Y-%m-%d %H:%M" it))
        (-uniq)
        (length)
        (= 1)))
@@ -623,8 +623,8 @@ Returns nil if TIMESTAMP or INTERVAL is invalid."
   (and timestamp
        interval
        (numberp interval)
-       ;; Validate timestamp is a proper time value (list of integers)
-       (listp timestamp)
+       ;; Validate timestamp is a proper time value (accepts list, integer, or float)
+       (or (listp timestamp) (numberp timestamp))
        (chime--time=
         (time-add (current-time) (seconds-to-time (* 60 interval)))
         timestamp)))
