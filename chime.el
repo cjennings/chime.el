@@ -56,6 +56,8 @@
 
 ;;; Code:
 
+;;;; Dependencies
+
 (require 'dash)
 (require 'alert)
 (require 'async)
@@ -65,6 +67,8 @@
 
 ;; Declare functions from chime-debug.el (loaded conditionally)
 (declare-function chime-debug-monitor-event-loading "chime-debug")
+
+;;;; Customization Variables
 
 (defgroup chime nil
   "Chime customization options."
@@ -554,6 +558,8 @@ Set to t to enable debug functions:
                                (file-name-directory (or load-file-name buffer-file-name)))
              t)))
 
+;;;; Internal State
+
 (defvar chime--timer nil
   "Timer value.")
 
@@ -600,6 +606,8 @@ for org-agenda-files to be populated)."
   "Modeline string showing next upcoming event.")
 ;;;###autoload(put 'chime-modeline-string 'risky-local-variable t)
 (put 'chime-modeline-string 'risky-local-variable t)
+
+;;;; Time/Date Utilities
 
 (defun chime--time= (&rest list)
   "Compare timestamps.
@@ -727,6 +735,8 @@ Returns a list of (HOURS MINUTES)."
   "Check if current time matches any day-wide alert time."
   (--any (chime-current-time-matches-time-of-day-string it)
          chime-day-wide-alert-times))
+
+;;;; All-Day Event Handling
 
 (defun chime-day-wide-notifications (events)
   "Generate notification texts for day-wide EVENTS.
@@ -891,6 +901,8 @@ Handles both same-day events and advance notices."
      (t
       (format "%s is due or scheduled today" title)))))
 
+;;;; Event Checking & Navigation
+
 (defun chime--check-event (event)
   "Get notifications for given EVENT.
 Returns a list of (MESSAGE . SEVERITY) cons cells."
@@ -931,6 +943,8 @@ Reconstructs marker from serialized file path and position."
   (when-let* ((first-event (car chime--upcoming-events))
               (event (car first-event)))
     (chime--jump-to-event event)))
+
+;;;; Modeline & Tooltip Display
 
 (defun chime--format-event-for-tooltip (event-time-str minutes-until title)
   "Format a single event line for tooltip display.
@@ -1205,6 +1219,8 @@ Tooltip shows events within `chime-tooltip-lookahead-hours' hours."
       ;; Force update ALL windows/modelines
       (force-mode-line-update t))))
 
+;;;; Whitelist/Blacklist Filtering
+
 (defun chime--get-tags (marker)
   "Retrieve tags of MARKER."
   (-> (org-entry-get marker "TAGS")
@@ -1269,6 +1285,8 @@ Combines keyword, tag, and custom predicate blacklists."
       (-> (apply '-orfn blacklist-predicates)
           (-remove markers))
     markers))
+
+;;;; Async Event Retrieval
 
 (defconst chime-default-environment-regex
   (macroexpand
@@ -1335,6 +1353,8 @@ Combines keyword, tag, and custom predicate blacklists."
          (chime--apply-blacklist)
          (-map 'chime--gather-info))))
 
+;;;; Notification Dispatch
+
 (defun chime--notify (msg-severity)
   "Notify about an event using `alert' library.
 MSG-SEVERITY is a cons cell (MESSAGE . SEVERITY) where MESSAGE is the
@@ -1357,6 +1377,8 @@ notification text and SEVERITY is one of high, medium, or low."
      :severity severity
      :category 'chime
      chime-extra-alert-plist)))
+
+;;;; Timestamp Parsing
 
 (defun chime--convert-12hour-to-24hour (timestamp hour)
   "Convert HOUR from 12-hour to 24-hour format based on TIMESTAMP's am/pm suffix.
@@ -1497,6 +1519,8 @@ Timestamps are extracted as cons cells:
           ;; Combine property and plain timestamps, removing duplicates and nils
           (-non-nil (append property-timestamps plain-timestamps)))))))
 
+;;;; Event Info Extraction
+
 (defun chime--sanitize-title (title)
   "Sanitize TITLE to prevent Lisp read syntax errors during async serialization.
 Balances unmatched parentheses, brackets, and braces by adding matching pairs.
@@ -1568,6 +1592,8 @@ especially when buffer names contain angle brackets)."
     (marker-file . ,(buffer-file-name (marker-buffer marker)))
     (marker-pos . ,(marker-position marker))))
 
+;;;; Configuration Validation
+
 ;;;###autoload
 (defun chime-validate-configuration ()
   "Validate chime's runtime environment and configuration.
@@ -1632,6 +1658,8 @@ When called programmatically, returns structured validation results."
 
     ;; Return issues for programmatic use
     issues))
+
+;;;; Core Lifecycle
 
 (defun chime--stop ()
   "Stop the notification timer and cancel any in-progress check."
